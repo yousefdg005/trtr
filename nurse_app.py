@@ -20,11 +20,11 @@ with open('style.css') as f:
 if not database.get_system_status():
     st.markdown("""
     <div class="app-header-banner">
-      <h1>👨‍⚕️ بوابة الممرضين ☽⭐</h1>
-      <p>نظام رعايتي · طرابلس الكبرى</p>
+      <div class="banner-title">👨‍⚕️ بوابة الممرضين ☽⭐</div>
+      <div class="banner-subtitle">نظام رعايتي للتمريض المنزلي · طرابلس الكبرى</div>
     </div>
     """, unsafe_allow_html=True)
-    st.error("🚨 المنظومة متوقفة مؤقتاً من قبل الإدارة. يرجى العودة لاحقاً.")
+    st.error("🚨 المنظومة متوقفة مؤقتاً من قبل الإدارة. يرجى المحاولة لاحقاً.")
     st.stop()
 
 # ── تهيئة الجلسة ──
@@ -40,8 +40,8 @@ if st.session_state['nurse_data'] is None:
 
     st.markdown("""
     <div class="app-header-banner">
-      <h1>👨‍⚕️ بوابة الممرضين ☽⭐</h1>
-      <p>نظام رعايتي · خدمة التمريض المنزلي · طرابلس</p>
+      <div class="banner-title">👨‍⚕️ بوابة الممرضين ☽⭐</div>
+      <div class="banner-subtitle">نظام رعايتي · خدمة التمريض المنزلي التخصصية · طرابلس</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -50,19 +50,19 @@ if st.session_state['nurse_data'] is None:
         st.markdown("### 🔐 تسجيل الدخول")
 
         with st.form("login_form"):
-            username = st.text_input("اسم المستخدم", placeholder="أدخل اسم المستخدم")
+            username = st.text_input("اسم المستخدم", placeholder="أدخل اسم المستخدم المسجل")
             password = st.text_input("كلمة المرور", type="password", placeholder="••••••••")
-            submit = st.form_submit_button("🚀 دخول", type="primary", use_container_width=True)
+            submit = st.form_submit_button("🚀 تسجيل الدخول", type="primary", use_container_width=True)
 
             if submit:
                 nurse = database.login_nurse(username, password)
                 if nurse:
                     if nurse['status'] == 'pending':
-                        st.warning("⏳ حسابك قيد المراجعة من قِبل الإدارة. يُرجى الانتظار.")
+                        st.warning("⏳ حسابك قيد المراجعة والاعتماد من قِبل الإدارة. يُرجى الانتظار.")
                     elif nurse['status'] == 'rejected':
-                        st.error("❌ نأسف، تم رفض طلب انضمامك. يُرجى التواصل مع الإدارة.")
+                        st.error("❌ نأسف، لم تتم الموافقة على طلب انضمامك. يُرجى مراجعة الإدارة.")
                     elif nurse['status'] == 'blocked':
-                        st.error("🚫 تم حظر حسابك من قبل الإدارة. يُرجى مراجعة الدعم الفني.")
+                        st.error("🚫 تم حظر حسابك من قبل الإدارة. يُرجى التواصل مع الدعم الفني.")
                     else:
                         st.session_state['nurse_data'] = nurse
                         st.rerun()
@@ -70,24 +70,18 @@ if st.session_state['nurse_data'] is None:
                     st.error("⚠️ اسم المستخدم أو كلمة المرور غير صحيحة.")
 
         st.markdown("---")
-        if st.button("📝 ليس لديك حساب؟ سجّل عضوية جديدة", use_container_width=True):
+        if st.button("📝 ليس لديك حساب؟ سجّل عضوية جديدة الآن", use_container_width=True):
             st.session_state['auth_mode'] = 'register'
             st.rerun()
 
-        st.markdown("""
-        <div style="text-align:center;color:#5a7a80;font-size:0.82rem;margin-top:1.5rem;direction:rtl;">
-          🏥 نظام رعايتي · خدمة التمريض المنزلي المتخصصة بطرابلس الكبرى
-        </div>
-        """, unsafe_allow_html=True)
-
     # ── إنشاء حساب جديد ──
     elif st.session_state['auth_mode'] == 'register':
-        st.markdown("### 📋 طلب الانضمام إلى منظومة رعايتي")
-        st.info("🛡️ سيتم مراجعة طلبك من قِبل الإدارة قبل تفعيل الحساب.")
+        st.markdown("### 📋 طلب الانضمام لمنظومة التمريض")
+        st.info("🛡️ يتم فحص شهادات ومستندات المزاولة من قبل الإدارة قبل تفعيل أي حساب جديد.")
 
         with st.form("register_form"):
-            name = st.text_input("الاسم الكامل", placeholder="كما سيظهر للمرضى")
-            username = st.text_input("اسم المستخدم", placeholder="للدخول للنظام")
+            name = st.text_input("الاسم الكامل", placeholder="كما هو مدون في رخصة المزاولة")
+            username = st.text_input("اسم المستخدم", placeholder="للدخول به للمنظومة")
             password = st.text_input("كلمة المرور", type="password", placeholder="••••••••")
             phone = st.text_input("رقم الهاتف", placeholder="09xxxxxxxx")
 
@@ -95,16 +89,16 @@ if st.session_state['nurse_data'] is None:
             with col_g:
                 gender = st.selectbox("الجنس", ["ذكر", "أنثى"])
             with col_s:
-                specialty = st.selectbox("التخصص", ["علاج طبيعي", "تمريض عام", "إسعاف وطوارئ"])
+                specialty = st.selectbox("التخصص الدقيق", ["علاج طبيعي", "تمريض عام", "إسعاف وطوارئ"])
 
             proof_info = st.text_area(
-                "إثبات المزاولة",
-                placeholder="رقم الترخيص المهني أو رابط الشهادات...",
-                height=80
+                "بيانات المزاولة والشهادات",
+                placeholder="رقم الترخيص المهني أو تفاصيل وسنوات الخبرة...",
+                height=90
             )
 
             submit_reg = st.form_submit_button(
-                "📤 إرسال الطلب للإدارة", type="primary", use_container_width=True
+                "📤 إرسال طلب العضوية", type="primary", use_container_width=True
             )
 
             if submit_reg:
@@ -118,20 +112,20 @@ if st.session_state['nurse_data'] is None:
                     else:
                         st.error(f"❌ {msg}")
                 else:
-                    st.error("⚠️ الرجاء تعبئة جميع الحقول الأساسية.")
+                    st.error("⚠️ الرجاء تعبئة جميع الحقول المطلوبة.")
 
         st.markdown("---")
-        if st.button("← العودة لتسجيل الدخول", use_container_width=True):
+        if st.button("← العودة لشاشة تسجيل الدخول", use_container_width=True):
             st.session_state['auth_mode'] = 'login'
             st.rerun()
 
 # ══════════════════════════════════════════════
-# لوحة تحكم الممرض
+# لوحة تحكم الممرض (بعد الدخول)
 # ══════════════════════════════════════════════
 else:
     nurse = st.session_state['nurse_data']
 
-    # فحص أمني
+    # فحص أمني وتحديث الحالة لحظياً
     current_status = database.login_nurse(nurse['username'], nurse['password'])
     if not current_status or current_status['status'] == 'blocked':
         st.session_state['nurse_data'] = None
@@ -145,12 +139,12 @@ else:
     with col_title:
         st.markdown(f"""
         <div class="app-header-banner" style="margin-bottom:0.8rem;">
-          <h1>👨‍⚕️ مرحباً، {nurse['name']}</h1>
-          <p>{nurse['specialty']} · {nurse['gender']}</p>
+          <div class="banner-title">👨‍⚕️ مرحباً، {nurse['name']}</div>
+          <div class="banner-subtitle">التخصص: {nurse['specialty']} &nbsp;|&nbsp; الجنس: {nurse['gender']}</div>
         </div>
         """, unsafe_allow_html=True)
     with col_logout:
-        st.markdown("<div style='margin-top:0.5rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:0.4rem;'></div>", unsafe_allow_html=True)
         if st.button("🚪 خروج", use_container_width=True):
             st.session_state['nurse_data'] = None
             st.rerun()
@@ -158,41 +152,37 @@ else:
     # ── مؤشر الديون ──
     debt = nurse['debt']
     if debt == 0:
-        st.success("✅ لا توجد ديون مستحقة عليك.")
+        st.success("✅ حسابك سليم: لا توجد ديون مستحقة عليك حالياً.")
     elif debt < 50:
         debt_pct = int((debt / 50) * 100)
-        st.warning(f"💰 الديون المستحقة: **{debt} د.ل** (الحد الأقصى: 50 د.ل)")
+        st.warning(f"💰 الديون المستحقة للنظام: **{debt} د.ل** (الحد المسموح: 50 د.ل)")
         st.progress(debt_pct / 100)
     else:
-        st.error(f"🛑 الديون بلغت الحد الأقصى: **{debt} د.ل** — الحساب موقوف مؤقتاً.")
+        st.error(f"🛑 تم إيقاف استقبال الطلبات لتجاوز حد الديون: **{debt} د.ل** — يرجى تسديد الديون للمتابعة.")
 
-    # ── طلب نشط ──
+    # ── فحص إذا كان هناك طلب نشط ومقبول ──
     active_request = database.get_accepted_request_for_nurse(nurse['username'])
 
     if active_request:
         st.markdown("---")
-        st.markdown("""
-        <div style="background:#e8f8f0;border-right:5px solid #27ae60;border-radius:10px;
-                    padding:1rem 1.2rem;direction:rtl;margin-bottom:0.8rem;">
-          <div style="font-size:1.1rem;font-weight:800;color:#155724;">🚨 لديك مهمة جارية الآن!</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        c1, c2 = st.columns(2)
-        with c1:
-            st.metric("👤 المريض", active_request['patient_name'])
-        with c2:
-            st.metric("🏥 الخدمة", active_request['service_type'])
+        st.success("🚨 لديك مهمة تمريضية نشطة قيد التنفيذ حالياً!")
 
         st.markdown(f"""
-        <div style="background:#e8f8f0;border-right:5px solid #27ae60;border-radius:10px;
-                    padding:1rem 1.2rem;direction:rtl;margin:0.5rem 0;">
-          <div style="font-size:0.85rem;color:#5a7a80;margin-bottom:4px;">رقم هاتف المريض</div>
-          <div style="font-size:1.5rem;font-weight:800;color:#155724;">📞 {active_request['patient_phone']}</div>
+        <div class="custom-card">
+          <div style="font-size:1.1rem;font-weight:800;color:#0e7490;margin-bottom:0.5rem;">
+            🏥 الخدمة المطلوبة: {active_request['service_type']}
+          </div>
+          <div style="font-size:1rem;margin-bottom:0.3rem;">
+            👤 <strong>اسم المريض:</strong> {active_request['patient_name']}
+          </div>
+          <div style="font-size:1.15rem;font-weight:800;color:#059669;margin-bottom:0.3rem;">
+            📞 <strong>هاتف المريض:</strong> {active_request['patient_phone']}
+          </div>
+          <div style="font-size:0.95rem;">
+            📍 <strong>العنوان التفصيلي:</strong> {active_request['location_text']}
+          </div>
         </div>
         """, unsafe_allow_html=True)
-
-        st.info(f"📍 **العنوان:** {active_request['location_text']}")
 
         m = folium.Map(
             location=[active_request['location_lat'], active_request['location_lng']],
@@ -206,42 +196,42 @@ else:
         st_folium(m, height=280, use_container_width=True)
 
         st.markdown("---")
-        if st.button("❌ إلغاء المهمة واسترداد العمولة", use_container_width=True):
+        if st.button("❌ إلغاء المهمة (استرداد العمولة وإلغاء الطلب)", use_container_width=True):
             database.cancel_request_by_nurse(active_request['id'], nurse['username'])
             st.rerun()
 
-    # ── حساب موقوف بسبب الديون ──
+    # ── في حالة الحظر بالديون ──
     elif nurse['status'] == 'debt_blocked':
         st.markdown("---")
-        st.error("🛑 تم إيقاف حسابك مؤقتاً لتجاوز حد الديون (50 دينار). سدّد ديونك لاستئناف العمل.")
+        st.error("🛑 تم إيقاف حسابك مؤقتاً لتجاوز ديونك الحد الأقصى (50 د.ل). يرجى إدخال كرت مدار لإعادة التنشيط.")
 
-        st.markdown("### 💳 سداد الديون بكرت مدار")
+        st.markdown("### 💳 شحن الرصيد وسداد الديون (كرت مدار)")
         with st.form("payment_form"):
             card_num = st.text_input("رقم كرت المدار (14 رقم)", max_chars=14, placeholder="XXXXXXXXXXXXXX")
             amount = st.selectbox("فئة الكرت (د.ل)", [10, 20, 30, 40, 50])
-            if st.form_submit_button("📤 إرسال الكرت للإدارة", type="primary", use_container_width=True):
+            if st.form_submit_button("📤 إرسال الكرت للمراجعة والخصم", type="primary", use_container_width=True):
                 if len(card_num) >= 10:
                     database.submit_payment(nurse['username'], card_num, amount)
-                    st.success("✅ تم إرسال الكرت بنجاح. بانتظار مراجعة الإدارة.")
+                    st.success("✅ تم إرسال الكرت بنجاح! سيتم خصم القيمة وتفعيل حسابك بعد تدقيق الإدارة.")
                 else:
-                    st.error("⚠️ رقم الكرت غير صالح.")
+                    st.error("⚠️ رقم الكرت المدخل غير صالح.")
 
-    # ── لوحة استقبال الطلبات ──
+    # ── الحالة الطبيعية: استقبال الطلبات وتحديد الموقع ──
     else:
-        with st.expander("💸 سداد الديون مبكراً (كروت مدار)"):
+        with st.expander("💸 سداد مسبق للديون (كروت مدار)"):
             with st.form("early_payment"):
                 card_num = st.text_input("رقم كرت المدار", max_chars=14, placeholder="XXXXXXXXXXXXXX")
                 amount = st.selectbox("فئة الكرت (د.ل)", [10, 20, 30, 40, 50])
                 if st.form_submit_button("📤 إرسال الدفعة", type="primary", use_container_width=True):
                     if len(card_num) >= 10:
                         database.submit_payment(nurse['username'], card_num, amount)
-                        st.success("✅ تم إرسال الدفعة للمراجعة.")
+                        st.success("✅ تم إرسال الدفعة للإدارة للمراجعة.")
                     else:
                         st.error("⚠️ رقم الكرت غير صالح.")
 
         st.markdown("---")
-        st.markdown("### 🗺️ تحديد موقعك لاستقبال الطلبات")
-        st.info("📍 اضغط زر 📍 على الخريطة أو انقر مباشرة لتحديد مكانك الحالي.")
+        st.markdown("### 🗺️ تحديد موقعك الميداني لتلقي الطلبات")
+        st.info("📍 اضغط على زر 📍 على الخريطة لتحديد موقعك بدقة أو انقر مباشرة.")
 
         m_loc = folium.Map(location=[32.8872, 13.1913], zoom_start=12)
         plugins.LocateControl(
@@ -255,9 +245,9 @@ else:
         if loc_data and loc_data.get("last_clicked"):
             my_lat = loc_data["last_clicked"]["lat"]
             my_lng = loc_data["last_clicked"]["lng"]
-            st.success("✅ تم تحديد موقعك. نطاق البحث: 10 كيلومتر.")
+            st.success("✅ تم تحديد موقعك الجغرافي بنجاح. نطاق البحث: 10 كم.")
 
-            is_online = st.toggle("🟢 أنا متاح الآن (استقبال الطلبات)")
+            is_online = st.toggle("🟢 أنا متاح الآن (بدء استقبال الطلبات القريبة)")
 
             if is_online:
                 st_autorefresh(interval=5000, key="nurse_refresh")
@@ -266,45 +256,41 @@ else:
                 )
 
                 st.markdown("---")
-                st.markdown("### 📋 الطلبات المتاحة قريباً منك")
+                st.markdown("### 📋 الطلبات القريبة المتاحة")
 
                 if len(pending_requests) == 0:
-                    st.info("🔍 لا توجد طلبات قريبة منك حالياً. يتجدد تلقائياً كل 5 ثوانٍ...")
+                    st.info("🔍 لا توجد طلبات معلقة قريبة منك حالياً. يتم التحديث تلقائياً كل 5 ثوانٍ...")
                 else:
                     for req in pending_requests:
-                        with st.container():
-                            st.markdown(f"""
-                            <div style="background:#ffffff;border-right:4px solid #0d6e6e;
-                                        border:1px solid #b2dfdb;border-right:4px solid #0d6e6e;
-                                        border-radius:10px;padding:0.9rem 1.1rem;
-                                        margin-bottom:0.6rem;direction:rtl;">
-                              <div style="font-size:1rem;font-weight:800;color:#0d6e6e;">
-                                🏥 {req['service_type']}
-                                <span style="font-size:0.85rem;color:#5a7a80;font-weight:600;">
-                                  · يبعد {req['distance_km']:.1f} كم 📍
-                                </span>
-                              </div>
-                              <div style="margin-top:0.4rem;font-size:0.9rem;color:#1a2e35;">
-                                👤 <strong>المريض:</strong> {req['patient_name']} · العمر: {req['patient_age']}
-                              </div>
-                              <div style="font-size:0.9rem;color:#1a2e35;">
-                                📍 <strong>العنوان:</strong> {req['location_text']}
-                              </div>
-                              <div style="font-size:0.9rem;color:#155724;font-weight:700;margin-top:0.3rem;">
-                                💰 الميزانية: {req['min_price']} - {req['max_price']} د.ل
-                              </div>
+                        st.markdown(f"""
+                        <div class="custom-card">
+                          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                            <div>
+                              <strong style="font-size:1.1rem;color:#0e7490;">🏥 {req['service_type']}</strong>
+                              <span style="opacity:0.8;font-size:0.85rem;margin-right:8px;">(يبعد: {req['distance_km']:.1f} كم 📍)</span>
                             </div>
-                            """, unsafe_allow_html=True)
+                            <div style="font-size:1rem;font-weight:800;color:#059669;">
+                              💰 الميزانية: {req['min_price']} – {req['max_price']} د.ل
+                            </div>
+                          </div>
+                          <div style="margin-top:0.4rem;font-size:0.95rem;">
+                            👤 <strong>المريض:</strong> {req['patient_name']} (العمر: {req['patient_age']})
+                          </div>
+                          <div style="font-size:0.95rem;">
+                            📍 <strong>العنوان:</strong> {req['location_text']}
+                          </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                            if st.button(
-                                f"✅ قبول واستلام الطلب",
-                                key=f"btn_{req['id']}",
-                                type="primary",
-                                use_container_width=True
-                            ):
-                                database.accept_request(req['id'], nurse['username'], nurse['name'])
-                                st.rerun()
+                        if st.button(
+                            "✅ قبول واستلام هذا الطلب",
+                            key=f"btn_{req['id']}",
+                            type="primary",
+                            use_container_width=True
+                        ):
+                            database.accept_request(req['id'], nurse['username'], nurse['name'])
+                            st.rerun()
 
-                            st.markdown("<div style='margin-bottom:0.5rem;'></div>", unsafe_allow_html=True)
+                        st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
         else:
-            st.warning("⚠️ انقر على الخريطة أو اضغط زر 📍 لتحديد موقعك وتلقي الطلبات القريبة.")
+            st.warning("⚠️ يرجى النقر على الخريطة أو زر 📍 لتحديد موقعك أولاً حتى تظهر لك الطلبات الميدانية القريبة.")

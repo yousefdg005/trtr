@@ -6,7 +6,7 @@ from streamlit_autorefresh import st_autorefresh
 import database
 
 st.set_page_config(
-    page_title="نظام رعايتي - طلب ممرض",
+    page_title="نظام رعايتي - طلب ممرض منزلي",
     page_icon="🏥",
     layout="centered",
     initial_sidebar_state="collapsed"
@@ -19,18 +19,18 @@ with open('style.css') as f:
 if not database.get_system_status():
     st.markdown("""
     <div class="app-header-banner">
-      <h1>🏥 نظام رعايتي ☽⭐</h1>
-      <p>خدمة التمريض المنزلي - طرابلس</p>
+      <div class="banner-title">🏥 نظام رعايتي ☽⭐</div>
+      <div class="banner-subtitle">خدمة التمريض المنزلي المباشرة · طرابلس</div>
     </div>
     """, unsafe_allow_html=True)
-    st.error("🚨 المنظومة متوقفة مؤقتاً من قبل الإدارة. يرجى المحاولة لاحقاً.")
+    st.error("🚨 المنظومة متوقفة مؤقتاً للصيانة من قبل الإدارة. يرجى العودة لاحقاً.")
     st.stop()
 
 # ── الهيدر ──
 st.markdown("""
 <div class="app-header-banner">
-  <h1>🏥 نظام رعايتي ☽⭐</h1>
-  <p>خدمة التمريض المنزلي المتخصصة · طرابلس الكبرى</p>
+  <div class="banner-title">🏥 نظام رعايتي ☽⭐</div>
+  <div class="banner-subtitle">طلب خدمة تمريض ورعاية منزلية فورية · طرابلس الكبرى</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -38,7 +38,7 @@ st.markdown("""
 if 'request_id' not in st.session_state:
     st.session_state['request_id'] = None
 
-# حدود طرابلس
+# حدود طرابلس (المركز، قرجي، الأندلس، سوق الجمعة)
 TRIPOLI_BOUNDS = {"min_lat": 32.83, "max_lat": 32.92, "min_lng": 13.11, "max_lng": 13.28}
 
 # ══════════════════════════════════════════════
@@ -46,51 +46,51 @@ TRIPOLI_BOUNDS = {"min_lat": 32.83, "max_lat": 32.92, "min_lng": 13.11, "max_lng
 # ══════════════════════════════════════════════
 if st.session_state['request_id'] is None:
 
-    st.info("📍 الخدمة متوفرة حالياً في: **طرابلس المركز · سوق الجمعة · حي الأندلس · قرجي**")
+    st.info("📍 نطاق الخدمة الميدانية الحالي: **طرابلس المركز · سوق الجمعة · حي الأندلس · قرجي**")
 
     # ── 1. بيانات المريض ──
     st.markdown("---")
     st.markdown("### 👤 أولاً: بيانات المريض")
 
-    name = st.text_input("الاسم الكامل", placeholder="مثال: محمد عبدالله الورفلي")
-    phone = st.text_input("رقم الهاتف", placeholder="09xxxxxxxx  ·  سيُرسل للممرض بعد القبول فقط")
+    name = st.text_input("الاسم الكامل للمريض", placeholder="مثال: محمد عبدالله الورفلي")
+    phone = st.text_input("رقم الهاتف للتواصل", placeholder="09xxxxxxxx (يظهر للممرض بعد القبول فقط)")
 
     col1, col2 = st.columns(2)
     with col1:
-        gender = st.selectbox("الجنس", ["ذكر", "أنثى"])
+        gender = st.selectbox("جنس المريض", ["ذكر", "أنثى"])
     with col2:
-        age = st.number_input("العمر", min_value=1, max_value=120, value=30)
+        age = st.number_input("العمر (بالسنوات)", min_value=1, max_value=120, value=30)
 
     # ── 2. الخدمة المطلوبة ──
     st.markdown("---")
-    st.markdown("### 💉 ثانياً: الخدمة المطلوبة")
+    st.markdown("### 💉 ثانياً: الخدمة الطبية المطلوبة")
 
     service = st.selectbox(
-        "نوع الخدمة",
+        "نوع الإجراء أو الخدمة",
         ["علاج طبيعي", "حقن عضل / وريد / تحت الجلد", "مداواة الجروح", "تركيب قسطرة بولية"]
     )
     service_desc = st.text_area(
-        "تفاصيل إضافية (اختياري)",
-        placeholder="صف حالة المريض أو أي تفاصيل تساعد الممرض...",
-        height=100
+        "تفاصيل إضافية عن الحالة (اختياري)",
+        placeholder="صف الحالة الصحية أو أي متطلبات خاصة للممرض...",
+        height=90
     )
 
     # ── 3. الميزانية والموقع ──
     st.markdown("---")
-    st.markdown("### 📍 ثالثاً: الميزانية والموقع")
+    st.markdown("### 📍 ثالثاً: الميزانية والموقع الجغرافي")
 
     col_min, col_max = st.columns(2)
     with col_min:
-        min_price = st.number_input("الحد الأدنى للدفع (د.ل)", min_value=0, value=15, step=5)
+        min_price = st.number_input("الحد الأدنى للدفع المقترح (د.ل)", min_value=0, value=15, step=5)
     with col_max:
-        max_price = st.number_input("الحد الأقصى للدفع (د.ل)", min_value=0, value=50, step=5)
+        max_price = st.number_input("الحد الأقصى للدفع المقترح (د.ل)", min_value=0, value=50, step=5)
 
     location_text = st.text_input(
-        "العنوان التفصيلي",
-        placeholder="مثال: سوق الجمعة، شارع جمال عبدالناصر، بجانب المسجد"
+        "العنوان بالتفصيل وعلامة مميزة",
+        placeholder="مثال: سوق الجمعة، بالقرب من جامع الحاراتي"
     )
 
-    st.markdown("**🗺️ حدد موقعك على الخريطة** (اضغط زر 📍 للتحديد التلقائي أو انقر مباشرة)")
+    st.markdown("**🗺️ حدد موقع البيت على الخريطة** (اضغط زر 📍 لتحديد مكانك تلقائياً عبر GPS)")
 
     m = folium.Map(location=[32.8872, 13.1913], zoom_start=12, tiles="OpenStreetMap")
     plugins.LocateControl(
@@ -102,11 +102,11 @@ if st.session_state['request_id'] is None:
     folium.Rectangle(
         bounds=[[TRIPOLI_BOUNDS["min_lat"], TRIPOLI_BOUNDS["min_lng"]],
                 [TRIPOLI_BOUNDS["max_lat"], TRIPOLI_BOUNDS["max_lng"]]],
-        color='#0d6e6e', fill=True, fill_color='#1a9e9e', fill_opacity=0.08,
-        tooltip="نطاق تغطية الخدمة"
+        color='#0e7490', fill=True, fill_color='#059669', fill_opacity=0.08,
+        tooltip="نطاق التغطية المعتمد"
     ).add_to(m)
     m.add_child(folium.LatLngPopup())
-    map_data = st_folium(m, height=320, use_container_width=True)
+    map_data = st_folium(m, height=300, use_container_width=True)
 
     lat, lng = None, None
     if map_data and map_data.get("last_clicked"):
@@ -117,22 +117,22 @@ if st.session_state['request_id'] is None:
             TRIPOLI_BOUNDS["min_lng"] <= lng <= TRIPOLI_BOUNDS["max_lng"]
         )
         if not in_bounds:
-            st.error("⚠️ الموقع المختار خارج نطاق الخدمة الحالي. يرجى اختيار موقع داخل طرابلس.")
+            st.error("⚠️ الموقع المختار خارج نطاق التغطية المدعوم حالياً في طرابلس.")
             lat, lng = None, None
         else:
-            st.success("✅ تم تحديد موقعك بنجاح — ضمن نطاق الخدمة.")
+            st.success("✅ تم تحديد الموقع بنجاح — يقع ضمن نطاق الخدمة الميدانية.")
 
     st.markdown("---")
 
-    if st.button("🚑 تأكيد وإرسال الطلب", type="primary", use_container_width=True):
+    if st.button("🚑 تأكيد وإرسال طلب التمريض", type="primary", use_container_width=True):
         if not name:
-            st.error("⚠️ الرجاء إدخال الاسم الكامل.")
+            st.error("⚠️ الرجاء كتابة اسم المريض.")
         elif not phone:
-            st.error("⚠️ الرجاء إدخال رقم الهاتف.")
+            st.error("⚠️ الرجاء كتابة رقم الهاتف للتواصل.")
         elif not location_text:
-            st.error("⚠️ الرجاء إدخال العنوان التفصيلي.")
+            st.error("⚠️ الرجاء إدخال وصف العنوان.")
         elif not lat or not lng:
-            st.error("⚠️ الرجاء تحديد موقعك على الخريطة.")
+            st.error("⚠️ الرجاء تحديد الموقع على الخريطة عبر النقر أو زر 📍.")
         else:
             req_id = database.create_request(
                 service, name, phone, gender, age,
@@ -142,32 +142,34 @@ if st.session_state['request_id'] is None:
             st.rerun()
 
 # ══════════════════════════════════════════════
-# شاشة المتابعة (بعد الإرسال)
+# شاشة المتابعة التلقائية (بعد إرسال الطلب)
 # ══════════════════════════════════════════════
 else:
     st_autorefresh(interval=5000, key="patient_refresh")
     status_data = database.get_request_status(st.session_state['request_id'])
 
-    # ── تم القبول ──
+    # ── في حال قبول الطلب من ممرض ──
     if status_data['status'] == 'accepted':
         st.balloons()
         st.markdown("""
         <div class="app-header-banner">
-          <h1>🎉 تم قبول طلبك!</h1>
-          <p>ممرض متخصص في طريقه إليك الآن</p>
+          <div class="banner-title">🎉 تم قبول طلبك بنجاح!</div>
+          <div class="banner-subtitle">قام أحد الممرضين المعتمدين باستلام المهمة وهو في طريقه إليك</div>
         </div>
         """, unsafe_allow_html=True)
 
-        st.success(f"✅ **الممرض:** {status_data['accepted_by']}")
+        st.success(f"✅ **الممرض المستلم:** {status_data['accepted_by']}")
+
         st.markdown(f"""
-        <div style="background:#e8f8f0;border-right:5px solid #27ae60;border-radius:10px;
-                    padding:1rem 1.2rem;direction:rtl;margin:0.5rem 0;">
-          <div style="font-size:0.85rem;color:#5a7a80;margin-bottom:4px;">رقم هاتف الممرض للتواصل</div>
-          <div style="font-size:1.5rem;font-weight:800;color:#155724;">📞 {status_data['nurse_phone']}</div>
+        <div class="custom-card">
+          <div style="font-size:0.9rem;opacity:0.8;margin-bottom:4px;">رقم هاتف الممرض المباشر للتواصل:</div>
+          <div style="font-size:1.6rem;font-weight:900;color:#059669;letter-spacing:1px;">
+            📞 {status_data['nurse_phone']}
+          </div>
         </div>
         """, unsafe_allow_html=True)
 
-        st.info("💬 يتم الاتفاق على التسعيرة النهائية مع الممرض مباشرة.")
+        st.info("💬 التسعيرة النهائية يتم تأكيدها والاتفاق عليها ودياً مع الممرض.")
 
         st.markdown("---")
         if st.button("❌ إلغاء الطلبية (لظرف طارئ)", use_container_width=True):
@@ -175,21 +177,17 @@ else:
             st.session_state['request_id'] = None
             st.rerun()
 
-    # ── قيد الانتظار ──
+    # ── في انتظار قبول ممرض ──
     elif status_data['status'] == 'pending':
         st.markdown("""
         <div class="app-header-banner">
-          <h1>⏳ جاري البحث...</h1>
-          <p>نبحث لك عن أقرب ممرض متخصص في منطقتك</p>
+          <div class="banner-title">⏳ جاري البحث عن ممرض...</div>
+          <div class="banner-subtitle">يتم الآن إشعار أقرب الممرضين المتاحين لموقعك الجغرافي</div>
         </div>
         """, unsafe_allow_html=True)
 
-        st.warning("🔍 طلبك وصلنا وجاري إرساله للممرضين القريبين منك. ستصلك إشعار فور القبول.")
-        st.markdown("""
-        <div style="text-align:center;padding:1.5rem;color:#0d6e6e;font-size:1rem;font-weight:700;direction:rtl;">
-          🔄 يتجدد تلقائياً كل 5 ثوانٍ...
-        </div>
-        """, unsafe_allow_html=True)
+        st.warning("🔍 طلبك معروض حالياً للممرضين في منطقتك. ستتحدث هذه الصفحة تلقائياً فور القبول.")
+        st.caption("🔄 يتم التحديث الآلي كل 5 ثوانٍ...")
 
         st.markdown("---")
         if st.button("❌ إلغاء الطلب", use_container_width=True):
@@ -197,10 +195,10 @@ else:
             st.session_state['request_id'] = None
             st.rerun()
 
-    # ── تم الإلغاء ──
+    # ── إذا أُلغيت الطلبية ──
     else:
-        st.error("❌ تم إلغاء الطلبية.")
+        st.error("❌ تم إلغاء هذه الطلبية.")
         st.markdown("---")
-        if st.button("🔄 العودة للرئيسية وتقديم طلب جديد", type="primary", use_container_width=True):
+        if st.button("🔄 العودة لتقديم طلب جديد", type="primary", use_container_width=True):
             st.session_state['request_id'] = None
             st.rerun()
