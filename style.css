@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
+
+* {
+    font-family: 'Tajawal', sans-serif !important;
+}
+/* جعل الاتجاه من اليمين لليسار */
+.stApp {
+    direction: rtl;
+}
+/* إصلاح محاذاة النصوص في Streamlit */
+div.stMarkdown, div.stButton > button, div.stTextInput > div > div > input, div.stSelectbox > div > div > div {
+    text-align: right !important;
+}
+/* تلوين الأزرار الرئيسية */
+.stButton>button[kind="primary"] {
+    background-color: #2563eb; /* أزرق */
+    color: white;
+    border-radius: 8px;
+    font-weight: bold;
+}
+/* إصلاح محاذاة القوائم النقطية */
+ul {
+    direction: rtl;
+    padding-right: 2rem !important;
+    padding-left: 0 !important;
+}
+li {
+    text-align: right !important;
+}
