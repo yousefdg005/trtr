@@ -1,6 +1,6 @@
 /* ============================================================
    نظام رعايتي - التصميم الطبي الليبي المتجاوب
-   Libyan Medical Theme - Light & Dark Mode Compatible
+   Libyan Medical Theme - Full Light & Dark Mode Support
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
@@ -31,7 +31,7 @@ p, .stMarkdown p, label, .stMarkdown {
 }
 
 /* ============================================================
-   الأزرار (Buttons) - متناسقة وواضحة جداً في الوضعين
+   الأزرار (Buttons)
    ============================================================ */
 
 /* الزر الأساسي (Primary) */
@@ -40,7 +40,7 @@ button[kind="primary"],
 .stFormSubmitButton > button[kind="primary"] {
   background: linear-gradient(135deg, #0e7490 0%, #059669 100%) !important;
   color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
   border-radius: 10px !important;
   font-weight: 700 !important;
   font-size: 1rem !important;
@@ -74,39 +74,49 @@ button[kind="secondary"],
   cursor: pointer !important;
 }
 
-/* في الوضع الفاتح (Light Mode) */
-@media (prefers-color-scheme: light) {
-  .stButton > button:not([kind="primary"]) {
-    background-color: #ffffff !important;
-    color: #0f766e !important;
-    border: 1.5px solid #0f766e !important;
-  }
-  .stButton > button:not([kind="primary"]):hover {
-    background-color: #f0fdfa !important;
-    border-color: #0d9488 !important;
-    color: #115e59 !important;
-  }
+/* عند اختيار الوضع الفاتح (يدوياً أو عبر النظام) */
+.stApp[data-theme="light"] .stButton > button:not([kind="primary"]),
+[data-theme="light"] .stButton > button:not([kind="primary"]),
+.stApp:not([data-theme="dark"]) .stButton > button:not([kind="primary"]) {
+  background-color: #ffffff !important;
+  color: #0f766e !important;
+  border: 1.5px solid #0f766e !important;
 }
 
-/* في الوضع الليلي (Dark Mode) */
-@media (prefers-color-scheme: dark) {
-  .stButton > button:not([kind="primary"]) {
-    background-color: #1e293b !important;
-    color: #2dd4bf !important;
-    border: 1.5px solid #0d9488 !important;
-  }
-  .stButton > button:not([kind="primary"]):hover {
-    background-color: #334155 !important;
-    border-color: #2dd4bf !important;
-    color: #5eead4 !important;
-  }
+.stApp[data-theme="light"] .stButton > button:not([kind="primary"]):hover,
+[data-theme="light"] .stButton > button:not([kind="primary"]):hover,
+.stApp:not([data-theme="dark"]) .stButton > button:not([kind="primary"]):hover {
+  background-color: #f0fdfa !important;
+  border-color: #0d9488 !important;
+  color: #115e59 !important;
 }
 
-/* دعم سمة Streamlit للوضع الليلي إجبارياً إن وُجدت السمة */
+/* عند اختيار الوضع المظلم (يدوياً من الإعدادات أو عبر النظام) */
+.stApp[data-theme="dark"] .stButton > button:not([kind="primary"]),
 [data-theme="dark"] .stButton > button:not([kind="primary"]) {
   background-color: #1e293b !important;
   color: #2dd4bf !important;
   border: 1.5px solid #0d9488 !important;
+}
+
+.stApp[data-theme="dark"] .stButton > button:not([kind="primary"]):hover,
+[data-theme="dark"] .stButton > button:not([kind="primary"]):hover {
+  background-color: #334155 !important;
+  border-color: #2dd4bf !important;
+  color: #5eead4 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .stApp:not([data-theme="light"]) .stButton > button:not([kind="primary"]) {
+    background-color: #1e293b !important;
+    color: #2dd4bf !important;
+    border: 1.5px solid #0d9488 !important;
+  }
+  .stApp:not([data-theme="light"]) .stButton > button:not([kind="primary"]):hover {
+    background-color: #334155 !important;
+    border-color: #2dd4bf !important;
+    color: #5eead4 !important;
+  }
 }
 
 /* ============================================================
@@ -123,7 +133,6 @@ button[kind="secondary"],
   text-align: right !important;
 }
 
-.app-header-banner h1,
 .app-header-banner .banner-title {
   color: #ffffff !important;
   font-size: 1.6rem !important;
@@ -132,7 +141,6 @@ button[kind="secondary"],
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.25) !important;
 }
 
-.app-header-banner p,
 .app-header-banner .banner-subtitle {
   color: #ccfbf1 !important;
   margin: 0.35rem 0 0 !important;
@@ -156,14 +164,8 @@ button[kind="secondary"],
   text-align: right !important;
 }
 
-/* حل مشكلة تداخل التنبيهات في الشريط الجانبي */
-[data-testid="stSidebar"] [data-testid="stAlert"] {
-  border-radius: 10px !important;
-  padding: 0.75rem 1rem !important;
-}
-
 /* ============================================================
-   التنبيهات (Alerts: Success, Info, Warning, Error)
+   التنبيهات (Alerts)
    ============================================================ */
 [data-testid="stAlert"] {
   border-radius: 12px !important;
@@ -173,14 +175,8 @@ button[kind="secondary"],
   border-right: 5px solid !important;
 }
 
-[data-testid="stAlert"] p,
-[data-testid="stAlert"] span {
-  font-size: 0.95rem !important;
-  font-weight: 600 !important;
-}
-
 /* ============================================================
-   البطاقات والحاويات (Cards & Containers)
+   البطاقات المخصصة (Cards)
    ============================================================ */
 .custom-card {
   border-radius: 12px !important;
@@ -188,22 +184,31 @@ button[kind="secondary"],
   margin: 0.75rem 0 !important;
   direction: rtl !important;
   text-align: right !important;
-  border-right: 4px solid #0f766e !important;
   transition: transform 0.15s ease !important;
 }
 
-@media (prefers-color-scheme: light) {
-  .custom-card {
-    background-color: #ffffff !important;
-    border: 1px solid #e2e8f0 !important;
-    border-right: 4px solid #0f766e !important;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
-    color: #0f172a !important;
-  }
+/* في الوضع الفاتح */
+.stApp[data-theme="light"] .custom-card,
+.stApp:not([data-theme="dark"]) .custom-card {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-right: 4px solid #0f766e !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+  color: #0f172a !important;
+}
+
+/* في الوضع المظلم */
+.stApp[data-theme="dark"] .custom-card,
+[data-theme="dark"] .custom-card {
+  background-color: #1e293b !important;
+  border: 1px solid #334155 !important;
+  border-right: 4px solid #2dd4bf !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+  color: #f8fafc !important;
 }
 
 @media (prefers-color-scheme: dark) {
-  .custom-card {
+  .stApp:not([data-theme="light"]) .custom-card {
     background-color: #1e293b !important;
     border: 1px solid #334155 !important;
     border-right: 4px solid #2dd4bf !important;
@@ -245,31 +250,33 @@ button[kind="secondary"],
   border: 1px solid #cbd5e1 !important;
 }
 
-@media (prefers-color-scheme: dark) {
-  .badge-green {
-    background: rgba(34, 197, 94, 0.2) !important;
-    color: #4ade80 !important;
-    border-color: rgba(34, 197, 94, 0.4) !important;
-  }
-  .badge-red {
-    background: rgba(239, 68, 68, 0.2) !important;
-    color: #f87171 !important;
-    border-color: rgba(239, 68, 68, 0.4) !important;
-  }
-  .badge-orange {
-    background: rgba(245, 158, 11, 0.2) !important;
-    color: #fbbf24 !important;
-    border-color: rgba(245, 158, 11, 0.4) !important;
-  }
-  .badge-gray {
-    background: rgba(148, 163, 184, 0.2) !important;
-    color: #94a3b8 !important;
-    border-color: rgba(148, 163, 184, 0.4) !important;
-  }
+.stApp[data-theme="dark"] .badge-green,
+[data-theme="dark"] .badge-green {
+  background: rgba(34, 197, 94, 0.2) !important;
+  color: #4ade80 !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
+}
+.stApp[data-theme="dark"] .badge-red,
+[data-theme="dark"] .badge-red {
+  background: rgba(239, 68, 68, 0.2) !important;
+  color: #f87171 !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+.stApp[data-theme="dark"] .badge-orange,
+[data-theme="dark"] .badge-orange {
+  background: rgba(245, 158, 11, 0.2) !important;
+  color: #fbbf24 !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+.stApp[data-theme="dark"] .badge-gray,
+[data-theme="dark"] .badge-gray {
+  background: rgba(148, 163, 184, 0.2) !important;
+  color: #94a3b8 !important;
+  border-color: rgba(148, 163, 184, 0.4) !important;
 }
 
 /* ============================================================
-   حقول الإدخال والقوائم (Inputs & Selects)
+   حقول الإدخال والتبويبات
    ============================================================ */
 .stTextInput input,
 .stTextArea textarea,
@@ -289,9 +296,6 @@ button[kind="secondary"],
   min-height: 48px !important;
 }
 
-/* ============================================================
-   التبويبات (Tabs)
-   ============================================================ */
 .stTabs [data-baseweb="tab-list"] {
   gap: 8px !important;
   direction: rtl !important;
@@ -307,9 +311,6 @@ button[kind="secondary"],
   min-height: 44px !important;
 }
 
-/* ============================================================
-   الإحصائيات (Metrics)
-   ============================================================ */
 [data-testid="stMetricValue"] {
   font-family: 'Cairo', sans-serif !important;
   font-size: 2rem !important;
@@ -317,43 +318,36 @@ button[kind="secondary"],
   color: #0f766e !important;
 }
 
-@media (prefers-color-scheme: dark) {
-  [data-testid="stMetricValue"] {
-    color: #2dd4bf !important;
-  }
+.stApp[data-theme="dark"] [data-testid="stMetricValue"],
+[data-theme="dark"] [data-testid="stMetricValue"] {
+  color: #2dd4bf !important;
 }
 
 /* ============================================================
-   التوافق مع شاشات الهواتف المحمولة (Mobile Optimization)
+   استجابة الهاتف المحمول
    ============================================================ */
 @media (max-width: 768px) {
   .main .block-container {
     padding: 1rem 0.6rem 2.5rem !important;
   }
-
   .app-header-banner {
     padding: 1rem 1.1rem !important;
     border-radius: 10px !important;
   }
-
-  .app-header-banner h1 {
+  .app-header-banner .banner-title {
     font-size: 1.3rem !important;
   }
-
-  .app-header-banner p {
+  .app-header-banner .banner-subtitle {
     font-size: 0.85rem !important;
   }
-
   .stButton > button {
     min-height: 50px !important;
     font-size: 1rem !important;
   }
-
   .stTabs [data-baseweb="tab"] {
     font-size: 0.85rem !important;
     padding: 0.5rem 0.75rem !important;
   }
-
   [data-testid="stMetricValue"] {
     font-size: 1.6rem !important;
   }
