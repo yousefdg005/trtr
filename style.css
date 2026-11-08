@@ -17,10 +17,10 @@ h1, h2, h3, h4, h5, h6,
    إخفاء شعار GitHub وأزرار الرأس وشريط Streamlit نهائياً
    ============================================================ */
 
-/* 1. إخفاء شريط أدوات الرأس بالكامل (GitHub, Edit, Star, Share) مع ترك زر القائمة المنسدلة الثلاث نقاط وزر السايدبار */
+/* 1. إخفاء شريط أدوات الرأس بالكامل (GitHub, Edit, Star, Share) مع ترك زر القائمة المنسدلة الثلاث نقاط وأزرار السايدبار (الطي والإعادة لفتحه) */
 [data-testid="stToolbarActions"],
 [data-testid="stToolbar"] a,
-[data-testid="stToolbar"] button:not([id="MainMenu"]):not([data-testid="stSidebarCollapseButton"]),
+[data-testid="stToolbar"] button:not([id="MainMenu"]):not([data-testid="stSidebarCollapseButton"]):not([data-testid="stExpandSidebarButton"]),
 [data-testid="stHeader"] a,
 [data-testid="stHeader"] svg[data-testid="stIcon"],
 header a[href*="github.com"],
@@ -88,13 +88,14 @@ iframe[title*="manage-app"] {
 }
 
 /* ضمان ظهور زر إعادة فتح الشريط الجانبي في كل الإصدارات
-   (collapsedControl قديماً، stSidebarCollapsedControl / stExpandSidebarButton حديثاً) */
+   (collapsedControl قديماً، stExpandSidebarButton حديثاً — يقع داخل stToolbar
+   لذا يجب أن يظل مستثنى من قاعدة الإخفاء أعلاه) */
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapsedControl"],
 [data-testid="stExpandSidebarButton"] {
   visibility: visible !important;
   opacity: 1 !important;
-  display: flex !important;
+  pointer-events: auto !important;
   font-family: inherit !important;
 }
 
