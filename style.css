@@ -80,16 +80,21 @@ iframe[title*="manage-app"] {
   padding: 1rem 1rem !important;
 }
 
-/* إخفاء الشريط الجانبي بالكامل عندما يتم طيّه لمنع قص النصوص عمودياً */
+/* الشريط المطوّى: يُدار بالكامل من Streamlit (انزلاق خارج اللوحة).
+   لا نخفيه بـ display:none — القاعدة القديمة كانت تجعل الشريط يختفي نهائياً
+   ويضيع زر إعادة فتحه في إصدارات Streamlit الحديثة على Streamlit Cloud */
 [data-testid="stSidebar"][aria-expanded="false"] {
-  margin-left: -500px !important;
-  display: none !important;
-  visibility: hidden !important;
+  overflow-x: hidden !important;
 }
 
-/* حماية أيقونات الفتح والإغلاق */
+/* ضمان ظهور زر إعادة فتح الشريط الجانبي في كل الإصدارات
+   (collapsedControl قديماً، stSidebarCollapsedControl / stExpandSidebarButton حديثاً) */
 [data-testid="collapsedControl"],
-[data-testid="stSidebarCollapseButton"] {
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="stExpandSidebarButton"] {
+  visibility: visible !important;
+  opacity: 1 !important;
+  display: flex !important;
   font-family: inherit !important;
 }
 

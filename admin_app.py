@@ -6,7 +6,8 @@ import os
 st.set_page_config(
     page_title="نظام رعايتي - لوحة الإدارة",
     page_icon="⚙️",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 with open('style.css') as f:
