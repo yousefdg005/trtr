@@ -3,64 +3,74 @@
    Libyan Medical Theme - Full Light & Dark Mode Support
    ============================================================ */
 
-/* استيراد الخط فقط بدون محاولة استبدال أيقونات Material */
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
 
-/* ── الخط والاتجاه العام ── */
-/* استثناء عناصر الأيقونات حتى لا تظهر كنص مقروء مثل _double_arrow_left */
-:not([class*="material-icons"]):not([class*="material-symbols"]):not([data-testid*="Icon"]):not(i):not(svg) {
+/* ── الخطوط العربية ── */
+p, span, label, input, textarea, select, button,
+h1, h2, h3, h4, h5, h6,
+.stMarkdown, .stText, .stCaption, [data-testid="stMetricValue"], [data-testid="stMetricLabel"] {
   font-family: 'Cairo', system-ui, -apple-system, sans-serif;
   box-sizing: border-box;
 }
 
-.stApp {
-  direction: rtl !important;
-}
+/* ============================================================
+   إصلاح محاذاة واتجاه الشريط الجانبي (Sidebar RTL Fix)
+   ============================================================ */
 
+/* توجيه المحتوى الرئيسي فقط لليمين */
 .main .block-container {
+  direction: rtl !important;
+  text-align: right !important;
   padding: 1.5rem 1rem 3rem !important;
   max-width: 950px !important;
+}
+
+/* الشريط الجانبي */
+[data-testid="stSidebar"] {
+  overflow-x: hidden !important;
+}
+
+[data-testid="stSidebar"] > div:first-child {
   direction: rtl !important;
+  text-align: right !important;
+  padding: 1rem 1rem !important;
+}
+
+/* إخفاء الشريط الجانبي بالكامل عندما يتم طيّه */
+[data-testid="stSidebar"][aria-expanded="false"] {
+  margin-left: -500px !important;
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* حماية أيقونات الفتح والإغلاق */
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"] {
+  font-family: inherit !important;
 }
 
 /* ============================================================
-   إخفاء شعار GitHub وقائمة Manage App وعناصر Streamlit
+   إخفاء شعار GitHub وزر Manage App وأدوات Streamlit
    ============================================================ */
-
-/* إخفاء زر وشريط Manage App في أسفل اليمين بالكامل */
-[data-testid="stStatusWidget"],
 [data-testid="manage-app-button"],
-div[data-testid="stToolbarActions"],
+div[data-testid="stStatusWidget"],
 .viewerBadge_container__r5tak,
 .viewerBadge_link__1SuYY,
 #MainMenu ~ footer,
 footer,
-footer:after,
-.stActionButton,
 div[class*="viewerBadge"],
 div[class*="manageApp"],
 div[class*="StatusWidget"],
-[data-testid="stDecoration"] {
+[data-testid="stDecoration"],
+[data-testid="stHeader"] a[href*="github.com"],
+[data-testid="stHeader"] button[title*="GitHub"],
+[data-testid="stToolbar"] a[href*="github.com"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
-}
-
-/* إخفاء زر GitHub وزر Fork وزر التعديل في الهيدر العلوي */
-[data-testid="stHeader"] a[href*="github.com"],
-[data-testid="stHeader"] button[title*="GitHub"],
-[data-testid="stToolbar"] a[href*="github.com"],
-[data-testid="stToolbar"] [data-testid="stToolbarActions"] {
-  display: none !important;
-  visibility: hidden !important;
-}
-
-/* حل مشكلة ظهور نص الأيقونة _double_arrow_left أو _double_arrow_right في زر طي السايدبار */
-[data-testid="collapsedControl"] span,
-[data-testid="stSidebarCollapseButton"] span,
-button[kind="header"] span {
-  font-family: 'Material Icons', 'Material Symbols Rounded', sans-serif !important;
+  height: 0 !important;
+  width: 0 !important;
 }
 
 /* محاذاة العناوين والنصوص لليمين */
@@ -69,7 +79,6 @@ h1, h2, h3, h4, h5, h6,
 p, .stMarkdown p, label, .stMarkdown {
   direction: rtl !important;
   text-align: right !important;
-  font-family: 'Cairo', sans-serif !important;
 }
 
 /* ============================================================
@@ -116,7 +125,7 @@ button[kind="secondary"],
   cursor: pointer !important;
 }
 
-/* عند اختيار الوضع الفاتح (يدوياً أو عبر النظام) */
+/* الوضع الفاتح */
 .stApp[data-theme="light"] .stButton > button:not([kind="primary"]),
 [data-theme="light"] .stButton > button:not([kind="primary"]),
 .stApp:not([data-theme="dark"]) .stButton > button:not([kind="primary"]) {
@@ -133,7 +142,7 @@ button[kind="secondary"],
   color: #115e59 !important;
 }
 
-/* عند اختيار الوضع المظلم */
+/* الوضع المظلم */
 .stApp[data-theme="dark"] .stButton > button:not([kind="primary"]),
 [data-theme="dark"] .stButton > button:not([kind="primary"]) {
   background-color: #1e293b !important;
@@ -153,11 +162,6 @@ button[kind="secondary"],
     background-color: #1e293b !important;
     color: #2dd4bf !important;
     border: 1.5px solid #0d9488 !important;
-  }
-  .stApp:not([data-theme="light"]) .stButton > button:not([kind="primary"]):hover {
-    background-color: #334155 !important;
-    border-color: #2dd4bf !important;
-    color: #5eead4 !important;
   }
 }
 
@@ -188,22 +192,6 @@ button[kind="secondary"],
   margin: 0.35rem 0 0 !important;
   font-size: 0.9rem !important;
   font-weight: 600 !important;
-}
-
-/* ============================================================
-   الشريط الجانبي (Sidebar)
-   ============================================================ */
-[data-testid="stSidebar"] {
-  direction: rtl !important;
-}
-
-[data-testid="stSidebar"] h1,
-[data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3,
-[data-testid="stSidebar"] p,
-[data-testid="stSidebar"] span,
-[data-testid="stSidebar"] label {
-  text-align: right !important;
 }
 
 /* ============================================================
@@ -268,7 +256,6 @@ button[kind="secondary"],
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 700;
-  font-family: 'Cairo', sans-serif !important;
 }
 
 .badge-green {
@@ -326,7 +313,6 @@ button[kind="secondary"],
   direction: rtl !important;
   text-align: right !important;
   border-radius: 10px !important;
-  font-family: 'Cairo', sans-serif !important;
   font-size: 0.95rem !important;
   min-height: 48px !important;
 }
@@ -345,7 +331,6 @@ button[kind="secondary"],
 }
 
 .stTabs [data-baseweb="tab"] {
-  font-family: 'Cairo', sans-serif !important;
   font-size: 0.95rem !important;
   font-weight: 700 !important;
   border-radius: 8px 8px 0 0 !important;
@@ -354,7 +339,6 @@ button[kind="secondary"],
 }
 
 [data-testid="stMetricValue"] {
-  font-family: 'Cairo', sans-serif !important;
   font-size: 2rem !important;
   font-weight: 800 !important;
   color: #0f766e !important;
