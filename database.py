@@ -1,6 +1,7 @@
 import streamlit as st
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from werkzeug.security import generate_password_hash, check_password_hash
 
 def get_connection():
     return psycopg2.connect(st.secrets["database"]["url"], cursor_factory=RealDictCursor)
@@ -38,36 +39,68 @@ def get_nearby_pending_requests(nurse_gender, nurse_lat, nurse_lng, max_radius_k
     conn.close()
     return requests
 
-# الدالة التي كانت مفقودة وتسببت بالخطأ
 def get_all_requests():
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM requests ORDER BY created_at DESC")
+    # Task 4 & 5: JOIN with nurses to fetch nurse name dynamically
+    query = """
+        SELECT r.*, n.name AS accepted_by
+        FROM requests r
+        LEFT JOIN nurses n ON r.accepted_nurse_id = n.id
+        ORDER BY r.created_at DESC
+    """
+    cur.execute(query)
     requests = cur.fetchall()
     cur.close()
     conn.close()
     return requests
 
-def accept_request(req_id, nurse_username, nurse_name):
+def accept_request(req_id, nurse_id):
+    """
+    Task 3: Fix Race Condition using optimistic check WHERE id = %s AND status = 'pending'.
+    Task 4 & 5: Save accepted_nurse_id and remove accepted_by denormalized column.
+    Returns: True if accepted successfully, False if already taken by another nurse.
+    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE requests SET status = 'accepted', accepted_by = %s, accepted_nurse_username = %s WHERE id = %s", 
-                (nurse_name, nurse_username, req_id))
-    cur.execute("UPDATE nurses SET debt = debt + 10 WHERE username = %s RETURNING debt", (nurse_username,))
-    new_debt = cur.fetchone()['debt']
-    if new_debt >= 50:
-        cur.execute("UPDATE nurses SET status = 'debt_blocked' WHERE username = %s", (nurse_username,))
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        # 1. Update status conditionally to prevent race conditions
+        cur.execute(
+            """UPDATE requests 
+               SET status = 'accepted', accepted_nurse_id = %s 
+               WHERE id = %s AND status = 'pending'""", 
+            (nurse_id, req_id)
+        )
+        if cur.rowcount == 0:
+            # Another nurse has already accepted this request
+            conn.rollback()
+            return False
+
+        # 2. Add commission debt to nurse
+        cur.execute("UPDATE nurses SET debt = debt + 10 WHERE id = %s RETURNING debt", (nurse_id,))
+        nurse_row = cur.fetchone()
+        if nurse_row and nurse_row['debt'] >= 50:
+            cur.execute("UPDATE nurses SET status = 'debt_blocked' WHERE id = %s", (nurse_id,))
+
+        conn.commit()
+        return True
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
 
 def get_request_status(req_id):
+    """
+    Task 4 & 5: JOIN with nurses using accepted_nurse_id to dynamically fetch nurse name and phone.
+    """
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
-        SELECT r.status, r.accepted_by, n.phone as nurse_phone 
+        SELECT r.status, n.name as accepted_by, n.phone as nurse_phone 
         FROM requests r 
-        LEFT JOIN nurses n ON r.accepted_nurse_username = n.username 
+        LEFT JOIN nurses n ON r.accepted_nurse_id = n.id 
         WHERE r.id = %s
     """, (req_id,))
     res = cur.fetchone()
@@ -77,38 +110,50 @@ def get_request_status(req_id):
 
 # --- دوال الإلغاء واسترداد العمولة ---
 def cancel_request_by_patient(req_id):
+    """
+    Task 4: Use accepted_nurse_id and nurse id for refunding fee.
+    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT status, accepted_nurse_username FROM requests WHERE id = %s", (req_id,))
+    cur.execute("SELECT status, accepted_nurse_id FROM requests WHERE id = %s", (req_id,))
     req = cur.fetchone()
     
-    if req and req['status'] == 'accepted' and req['accepted_nurse_username']:
-        cur.execute("UPDATE nurses SET debt = GREATEST(debt - 10, 0) WHERE username = %s RETURNING debt", (req['accepted_nurse_username'],))
-        new_debt = cur.fetchone()['debt']
-        if new_debt < 50:
-            cur.execute("UPDATE nurses SET status = 'approved' WHERE username = %s AND status = 'debt_blocked'", (req['accepted_nurse_username'],))
+    if req and req['status'] == 'accepted' and req['accepted_nurse_id']:
+        cur.execute("UPDATE nurses SET debt = GREATEST(debt - 10, 0) WHERE id = %s RETURNING debt", (req['accepted_nurse_id'],))
+        nurse_row = cur.fetchone()
+        if nurse_row and nurse_row['debt'] < 50:
+            cur.execute("UPDATE nurses SET status = 'approved' WHERE id = %s AND status = 'debt_blocked'", (req['accepted_nurse_id'],))
             
     cur.execute("UPDATE requests SET status = 'cancelled_by_patient' WHERE id = %s", (req_id,))
     conn.commit()
     cur.close()
     conn.close()
 
-def get_accepted_request_for_nurse(nurse_username):
+def get_accepted_request_for_nurse(nurse_id):
+    """
+    Task 4: Query active accepted request by accepted_nurse_id.
+    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM requests WHERE status = 'accepted' AND accepted_nurse_username = %s ORDER BY created_at DESC LIMIT 1", (nurse_username,))
+    cur.execute(
+        "SELECT * FROM requests WHERE status = 'accepted' AND accepted_nurse_id = %s ORDER BY created_at DESC LIMIT 1",
+        (nurse_id,)
+    )
     req = cur.fetchone()
     cur.close()
     conn.close()
     return req
 
-def cancel_request_by_nurse(req_id, nurse_username):
+def cancel_request_by_nurse(req_id, nurse_id):
+    """
+    Task 4: Refund nurse commission debt by nurse_id.
+    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE nurses SET debt = GREATEST(debt - 10, 0) WHERE username = %s RETURNING debt", (nurse_username,))
-    new_debt = cur.fetchone()['debt']
-    if new_debt < 50:
-        cur.execute("UPDATE nurses SET status = 'approved' WHERE username = %s AND status = 'debt_blocked'", (nurse_username,))
+    cur.execute("UPDATE nurses SET debt = GREATEST(debt - 10, 0) WHERE id = %s RETURNING debt", (nurse_id,))
+    nurse_row = cur.fetchone()
+    if nurse_row and nurse_row['debt'] < 50:
+        cur.execute("UPDATE nurses SET status = 'approved' WHERE id = %s AND status = 'debt_blocked'", (nurse_id,))
         
     cur.execute("UPDATE requests SET status = 'cancelled_by_nurse' WHERE id = %s", (req_id,))
     conn.commit()
@@ -117,13 +162,17 @@ def cancel_request_by_nurse(req_id, nurse_username):
 
 # --- دوال الممرضين والعضوية ---
 def register_nurse(username, password, name, phone, gender, specialty, proof_info):
+    """
+    Task 1: Secure password hashing using werkzeug.security generate_password_hash.
+    """
     conn = get_connection()
     cur = conn.cursor()
     try:
+        hashed_password = generate_password_hash(password)
         cur.execute(
             """INSERT INTO nurses (username, password, name, phone, gender, specialty, proof_info) 
             VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (username, password, name, phone, gender, specialty, proof_info)
+            (username, hashed_password, name, phone, gender, specialty, proof_info)
         )
         conn.commit()
         return True, "تم إرسال طلبك للإدارة بنجاح. يرجى انتظار القبول."
@@ -136,9 +185,27 @@ def register_nurse(username, password, name, phone, gender, specialty, proof_inf
         conn.close()
 
 def login_nurse(username, password):
+    """
+    Task 1: Retrieve user by username only, then securely verify password hash.
+    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM nurses WHERE username = %s AND password = %s", (username, password))
+    cur.execute("SELECT * FROM nurses WHERE username = %s", (username,))
+    nurse = cur.fetchone()
+    cur.close()
+    conn.close()
+    
+    if nurse and check_password_hash(nurse['password'], password):
+        return nurse
+    return None
+
+def get_nurse_by_id(nurse_id):
+    """
+    Helper to refresh nurse profile/session by ID.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM nurses WHERE id = %s", (nurse_id,))
     nurse = cur.fetchone()
     cur.close()
     conn.close()
@@ -189,21 +256,27 @@ def set_system_status(is_active):
     cur.close()
     conn.close()
 
-def submit_payment(username, card_number, amount):
+def submit_payment(nurse_id, card_number, amount):
+    """
+    Task 4: Store nurse_id (Integer FK) instead of nurse_username.
+    """
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("INSERT INTO payments (nurse_username, card_number, amount) VALUES (%s, %s, %s)", (username, card_number, amount))
+    cur.execute("INSERT INTO payments (nurse_id, card_number, amount) VALUES (%s, %s, %s)", (nurse_id, card_number, amount))
     conn.commit()
     cur.close()
     conn.close()
 
 def get_pending_payments():
+    """
+    Task 4: JOIN payments on p.nurse_id = n.id instead of nurse_username.
+    """
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""
         SELECT p.*, n.name as nurse_name, n.phone 
         FROM payments p 
-        JOIN nurses n ON p.nurse_username = n.username 
+        JOIN nurses n ON p.nurse_id = n.id 
         WHERE p.status = 'pending' ORDER BY p.created_at ASC
     """)
     payments = cur.fetchall()
@@ -211,15 +284,18 @@ def get_pending_payments():
     conn.close()
     return payments
 
-def review_payment(payment_id, username, amount, action):
+def review_payment(payment_id, nurse_id, amount, action):
+    """
+    Task 4: Deduct debt and update status by nurse_id.
+    """
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("UPDATE payments SET status = %s WHERE id = %s", (action, payment_id))
     if action == 'approved':
-        cur.execute("UPDATE nurses SET debt = GREATEST(debt - %s, 0) WHERE username = %s RETURNING debt", (amount, username))
-        new_debt = cur.fetchone()['debt']
-        if new_debt < 50:
-            cur.execute("UPDATE nurses SET status = 'approved' WHERE username = %s AND status = 'debt_blocked'", (username,))
+        cur.execute("UPDATE nurses SET debt = GREATEST(debt - %s, 0) WHERE id = %s RETURNING debt", (amount, nurse_id))
+        nurse_row = cur.fetchone()
+        if nurse_row and nurse_row['debt'] < 50:
+            cur.execute("UPDATE nurses SET status = 'approved' WHERE id = %s AND status = 'debt_blocked'", (nurse_id,))
     conn.commit()
     cur.close()
     conn.close()

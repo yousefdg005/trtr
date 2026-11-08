@@ -146,10 +146,11 @@ if st.session_state['request_id'] is None:
 # ══════════════════════════════════════════════
 else:
     st_autorefresh(interval=5000, key="patient_refresh")
+    # Task 4 & 5: get_request_status performs SQL JOIN with nurses to get accepted_by (name) and phone
     status_data = database.get_request_status(st.session_state['request_id'])
 
     # ── في حال قبول الطلب من ممرض ──
-    if status_data['status'] == 'accepted':
+    if status_data and status_data['status'] == 'accepted':
         st.balloons()
         st.markdown("""
         <div class="app-header-banner">
@@ -178,7 +179,7 @@ else:
             st.rerun()
 
     # ── في انتظار قبول ممرض ──
-    elif status_data['status'] == 'pending':
+    elif status_data and status_data['status'] == 'pending':
         st.markdown("""
         <div class="app-header-banner">
           <div class="banner-title">⏳ جاري البحث عن ممرض...</div>

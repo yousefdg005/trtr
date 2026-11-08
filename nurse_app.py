@@ -4,7 +4,8 @@ from folium import plugins
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
-import base64
+import os
+import uuid
 import database
 
 st.set_page_config(
@@ -92,7 +93,7 @@ if st.session_state['nurse_data'] is None:
             with col_s:
                 specialty = st.selectbox("التخصص الدقيق", ["علاج طبيعي", "تمريض عام", "إسعاف وطوارئ"])
 
-            # 📄 طلب صورة وثيقة إثبات المزاولة
+            # 📄 Task 2: طلب صورة وثيقة إثبات المزاولة وحفظها في uploads/licenses/
             uploaded_doc = st.file_uploader(
                 "📸 صورة وثيقة أو رخصة مزاولة المهنة (إجباري):",
                 type=["png", "jpg", "jpeg", "webp"],
@@ -115,13 +116,20 @@ if st.session_state['nurse_data'] is None:
                 elif not uploaded_doc:
                     st.error("⚠️ يجب إرفاق صورة وثيقة إثبات مزاولة المهنة لإكمال الطلب.")
                 else:
-                    # تحويل الصورة إلى base64 لتخزينها وعرضها للإدارة
-                    doc_bytes = uploaded_doc.read()
-                    mime_type = uploaded_doc.type or "image/jpeg"
-                    b64_str = base64.b64encode(doc_bytes).decode('utf-8')
+                    # Task 2: حفظ الملف على القرص بمسار آمن واسم فريد
+                    upload_dir = os.path.join("uploads", "licenses")
+                    os.makedirs(upload_dir, exist_ok=True)
                     
+                    file_ext = os.path.splitext(uploaded_doc.name)[1].lower() or ".jpg"
+                    unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+                    saved_file_path = os.path.join(upload_dir, unique_filename)
+                    
+                    with open(saved_file_path, "wb") as f_out:
+                        f_out.write(uploaded_doc.getbuffer())
+                    
+                    # حفظ مسار الملف والملاحظات في proof_info
                     notes_text = f"ملاحظات: {extra_notes}" if extra_notes else "لا توجد ملاحظات إضافية"
-                    proof_info = f"DATA_IMAGE:{mime_type};base64,{b64_str}###{notes_text}"
+                    proof_info = f"FILE_PATH:{saved_file_path}###{notes_text}"
 
                     success, msg = database.register_nurse(
                         username, password, name, phone, gender, specialty, proof_info
@@ -143,8 +151,8 @@ if st.session_state['nurse_data'] is None:
 else:
     nurse = st.session_state['nurse_data']
 
-    # فحص أمني وتحديث الحالة لحظياً
-    current_status = database.login_nurse(nurse['username'], nurse['password'])
+    # فحص أمني وتحديث الحالة لحظياً عبر معرف الممرض nurse['id']
+    current_status = database.get_nurse_by_id(nurse['id'])
     if not current_status or current_status['status'] == 'blocked':
         st.session_state['nurse_data'] = None
         st.rerun()
@@ -178,8 +186,8 @@ else:
     else:
         st.error(f"🛑 تم إيقاف استقبال الطلبات لتجاوز حد الديون: **{debt} د.ل** — يرجى تسديد الديون للمتابعة.")
 
-    # ── فحص إذا كان هناك طلب نشط ومقبول ──
-    active_request = database.get_accepted_request_for_nurse(nurse['username'])
+    # ── فحص إذا كان هناك طلب نشط ومقبول للممرض (Task 4: nurse['id']) ──
+    active_request = database.get_accepted_request_for_nurse(nurse['id'])
 
     if active_request:
         st.markdown("---")
@@ -215,7 +223,7 @@ else:
 
         st.markdown("---")
         if st.button("❌ إلغاء المهمة (استرداد العمولة وإلغاء الطلب)", use_container_width=True):
-            database.cancel_request_by_nurse(active_request['id'], nurse['username'])
+            database.cancel_request_by_nurse(active_request['id'], nurse['id'])
             st.rerun()
 
     # ── في حالة الحظر بالديون ──
@@ -229,7 +237,7 @@ else:
             amount = st.selectbox("فئة الكرت (د.ل)", [10, 20, 30, 40, 50])
             if st.form_submit_button("📤 إرسال الكرت للمراجعة والخصم", type="primary", use_container_width=True):
                 if len(card_num) >= 10:
-                    database.submit_payment(nurse['username'], card_num, amount)
+                    database.submit_payment(nurse['id'], card_num, amount)
                     st.success("✅ تم إرسال الكرت بنجاح! سيتم خصم القيمة وتفعيل حسابك بعد تدقيق الإدارة.")
                 else:
                     st.error("⚠️ رقم الكرت المدخل غير صالح.")
@@ -242,7 +250,7 @@ else:
                 amount = st.selectbox("فئة الكرت (د.ل)", [10, 20, 30, 40, 50])
                 if st.form_submit_button("📤 إرسال الدفعة", type="primary", use_container_width=True):
                     if len(card_num) >= 10:
-                        database.submit_payment(nurse['username'], card_num, amount)
+                        database.submit_payment(nurse['id'], card_num, amount)
                         st.success("✅ تم إرسال الدفعة للإدارة للمراجعة.")
                     else:
                         st.error("⚠️ رقم الكرت غير صالح.")
@@ -300,14 +308,18 @@ else:
                         </div>
                         """, unsafe_allow_html=True)
 
+                        # Task 3: معالجة الـ Race Condition مع إرجاع تنبيه أنيق إذا استلمه ممرض آخر
                         if st.button(
                             "✅ قبول واستلام هذا الطلب",
                             key=f"btn_{req['id']}",
                             type="primary",
                             use_container_width=True
                         ):
-                            database.accept_request(req['id'], nurse['username'], nurse['name'])
-                            st.rerun()
+                            success = database.accept_request(req['id'], nurse['id'])
+                            if success:
+                                st.rerun()
+                            else:
+                                st.error("عذراً، تم استلام هذا الطلب من ممرض آخر للتو.")
 
                         st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
         else:

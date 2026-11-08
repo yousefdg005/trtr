@@ -1,6 +1,7 @@
 import streamlit as st
 import database
 import pandas as pd
+import os
 
 st.set_page_config(
     page_title="نظام رعايتي - لوحة الإدارة",
@@ -112,7 +113,7 @@ with tab1:
         })
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-# ── تبويب 2: طلبات الانضمام مع عرض صورة الوثيقة ──
+# ── تبويب 2: طلبات الانضمام مع عرض صورة الوثيقة من مسار الملف (Task 2) ──
 with tab2:
     st.subheader("👨‍⚕️ طلبات العضوية المعلقة للمراجعة والتدقيق")
 
@@ -121,13 +122,18 @@ with tab2:
     else:
         for n in pending_nurses:
             proof = n['proof_info'] or ""
-            image_src = None
+            file_img_path = None
+            base64_data = None
             notes = proof
 
-            # فحص إذا كان إثبات المزاولة صورة base64
-            if proof.startswith("DATA_IMAGE:"):
+            # دعم المسار الجديد للملف على القرص (Task 2) مع دعم التوافق مع الصور القديمة base64 إن وُجدت
+            if proof.startswith("FILE_PATH:"):
+                parts = proof.replace("FILE_PATH:", "").split("###", 1)
+                file_img_path = parts[0]
+                notes = parts[1] if len(parts) > 1 else ""
+            elif proof.startswith("DATA_IMAGE:"):
                 parts = proof.replace("DATA_IMAGE:", "").split("###", 1)
-                image_src = "data:" + parts[0]
+                base64_data = "data:" + parts[0]
                 notes = parts[1] if len(parts) > 1 else ""
 
             st.markdown(f"""
@@ -149,10 +155,13 @@ with tab2:
             </div>
             """, unsafe_allow_html=True)
 
-            # عرض صورة وثيقة المزاولة إذا توفرت
-            if image_src:
+            # Task 2: عرض صورة وثيقة المزاولة من الملف المحلي على القرص
+            if file_img_path and os.path.exists(file_img_path):
                 with st.expander("🔍 اضغط هنا لمعاينة صورة وثيقة / ترخيص المزاولة"):
-                    st.image(image_src, caption=f"وثيقة مزاولة المهنة للممرض: {n['name']}", use_container_width=True)
+                    st.image(file_img_path, caption=f"وثيقة مزاولة المهنة للممرض: {n['name']}", use_container_width=True)
+            elif base64_data:
+                with st.expander("🔍 اضغط هنا لمعاينة صورة وثيقة / ترخيص المزاولة"):
+                    st.image(base64_data, caption=f"وثيقة مزاولة المهنة للممرض: {n['name']}", use_container_width=True)
 
             col_a, col_r = st.columns(2)
             with col_a:
@@ -217,7 +226,7 @@ with tab3:
 
             st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
 
-# ── تبويب 4: المدفوعات ──
+# ── تبويب 4: المدفوعات (Task 4: nurse_id) ──
 with tab4:
     st.subheader("💳 كروت شحن مدار قيد المراجعة")
 
@@ -247,11 +256,11 @@ with tab4:
             col_ok, col_bad = st.columns(2)
             with col_ok:
                 if st.button("✅ كرت صحيح (خصم الدين فوراً)", key=f"pay_ok_{p['id']}", type="primary", use_container_width=True):
-                    database.review_payment(p['id'], p['nurse_username'], p['amount'], 'approved')
+                    database.review_payment(p['id'], p['nurse_id'], p['amount'], 'approved')
                     st.rerun()
             with col_bad:
                 if st.button("❌ كرت غير صحيح / مستعمل", key=f"pay_bad_{p['id']}", use_container_width=True):
-                    database.review_payment(p['id'], p['nurse_username'], p['amount'], 'rejected')
+                    database.review_payment(p['id'], p['nurse_id'], p['amount'], 'rejected')
                     st.rerun()
 
             st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
