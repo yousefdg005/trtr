@@ -112,14 +112,24 @@ with tab1:
         })
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-# ── تبويب 2: طلبات الانضمام ──
+# ── تبويب 2: طلبات الانضمام مع عرض صورة الوثيقة ──
 with tab2:
-    st.subheader("👨‍⚕️ طلبات العضوية المعلقة للمراجعة")
+    st.subheader("👨‍⚕️ طلبات العضوية المعلقة للمراجعة والتدقيق")
 
     if len(pending_nurses) == 0:
         st.success("✅ لا توجد طلبات انضمام معلقة حالياً.")
     else:
         for n in pending_nurses:
+            proof = n['proof_info'] or ""
+            image_src = None
+            notes = proof
+
+            # فحص إذا كان إثبات المزاولة صورة base64
+            if proof.startswith("DATA_IMAGE:"):
+                parts = proof.replace("DATA_IMAGE:", "").split("###", 1)
+                image_src = "data:" + parts[0]
+                notes = parts[1] if len(parts) > 1 else ""
+
             st.markdown(f"""
             <div class="custom-card">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -133,11 +143,16 @@ with tab2:
                   {"👨" if n['gender'] == "ذكر" else "👩"} {n['gender']}
                 </div>
               </div>
-              <div style="margin-top:0.5rem;font-size:0.9rem;opacity:0.9;">
-                📄 <strong>بيانات الترخيص والمزاولة:</strong> {n['proof_info']}
+              <div style="margin-top:0.4rem;font-size:0.9rem;opacity:0.9;">
+                📝 <strong>معلومات المزاولة:</strong> {notes}
               </div>
             </div>
             """, unsafe_allow_html=True)
+
+            # عرض صورة وثيقة المزاولة إذا توفرت
+            if image_src:
+                with st.expander("🔍 اضغط هنا لمعاينة صورة وثيقة / ترخيص المزاولة"):
+                    st.image(image_src, caption=f"وثيقة مزاولة المهنة للممرض: {n['name']}", use_container_width=True)
 
             col_a, col_r = st.columns(2)
             with col_a:

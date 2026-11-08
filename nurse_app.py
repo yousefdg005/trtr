@@ -4,6 +4,7 @@ from folium import plugins
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
+import base64
 import database
 
 st.set_page_config(
@@ -74,10 +75,10 @@ if st.session_state['nurse_data'] is None:
             st.session_state['auth_mode'] = 'register'
             st.rerun()
 
-    # ── إنشاء حساب جديد ──
+    # ── إنشاء حساب جديد (طلب العضوية) ──
     elif st.session_state['auth_mode'] == 'register':
         st.markdown("### 📋 طلب الانضمام لمنظومة التمريض")
-        st.info("🛡️ يتم فحص شهادات ومستندات المزاولة من قبل الإدارة قبل تفعيل أي حساب جديد.")
+        st.info("🛡️ يشترط إرفاق صورة وثيقة مزاولة المهنة أو المؤهل الطبي للمراجعة والاعتماد.")
 
         with st.form("register_form"):
             name = st.text_input("الاسم الكامل", placeholder="كما هو مدون في رخصة المزاولة")
@@ -91,18 +92,37 @@ if st.session_state['nurse_data'] is None:
             with col_s:
                 specialty = st.selectbox("التخصص الدقيق", ["علاج طبيعي", "تمريض عام", "إسعاف وطوارئ"])
 
-            proof_info = st.text_area(
-                "بيانات المزاولة والشهادات",
-                placeholder="رقم الترخيص المهني أو تفاصيل وسنوات الخبرة...",
-                height=90
+            # 📄 طلب صورة وثيقة إثبات المزاولة
+            uploaded_doc = st.file_uploader(
+                "📸 صورة وثيقة أو رخصة مزاولة المهنة (إجباري):",
+                type=["png", "jpg", "jpeg", "webp"],
+                help="التقط صورة واضحة لرخصة المزاولة أو بطاقة النقابة أو إفادة التخرج الطبية"
+            )
+
+            extra_notes = st.text_area(
+                "ملاحظات أو رقم القيد بالنقابة (اختياري):",
+                placeholder="رقم القيد أو سنوات الخبرة...",
+                height=70
             )
 
             submit_reg = st.form_submit_button(
-                "📤 إرسال طلب العضوية", type="primary", use_container_width=True
+                "📤 إرسال طلب العضوية للإدارة", type="primary", use_container_width=True
             )
 
             if submit_reg:
-                if username and password and name and proof_info:
+                if not (username and password and name and phone):
+                    st.error("⚠️ الرجاء تعبئة جميع الحقول الشخصية الأساسية.")
+                elif not uploaded_doc:
+                    st.error("⚠️ يجب إرفاق صورة وثيقة إثبات مزاولة المهنة لإكمال الطلب.")
+                else:
+                    # تحويل الصورة إلى base64 لتخزينها وعرضها للإدارة
+                    doc_bytes = uploaded_doc.read()
+                    mime_type = uploaded_doc.type or "image/jpeg"
+                    b64_str = base64.b64encode(doc_bytes).decode('utf-8')
+                    
+                    notes_text = f"ملاحظات: {extra_notes}" if extra_notes else "لا توجد ملاحظات إضافية"
+                    proof_info = f"DATA_IMAGE:{mime_type};base64,{b64_str}###{notes_text}"
+
                     success, msg = database.register_nurse(
                         username, password, name, phone, gender, specialty, proof_info
                     )
@@ -111,8 +131,6 @@ if st.session_state['nurse_data'] is None:
                         st.session_state['auth_mode'] = 'login'
                     else:
                         st.error(f"❌ {msg}")
-                else:
-                    st.error("⚠️ الرجاء تعبئة جميع الحقول المطلوبة.")
 
         st.markdown("---")
         if st.button("← العودة لشاشة تسجيل الدخول", use_container_width=True):
