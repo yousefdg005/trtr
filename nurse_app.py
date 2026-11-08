@@ -3,7 +3,6 @@ import folium
 from folium import plugins
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
-import pandas as pd
 import os
 import uuid
 import database
