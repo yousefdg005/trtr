@@ -23,12 +23,24 @@ st.markdown("""
 # ══════════════════════════════════════════════
 # حماية ومصادقة لوحة الإدارة
 # ══════════════════════════════════════════════
+import hmac
+
 if "admin_authenticated" not in st.session_state:
     st.session_state["admin_authenticated"] = False
 
-# قراءة بيانات الدخول من secrets أو استخدام قيم افتراضية آمنة
-ADMIN_USERNAME = st.secrets.get("admin", {}).get("username", "admin") if "admin" in st.secrets else "admin"
-ADMIN_PASSWORD = st.secrets.get("admin", {}).get("password", st.secrets.get("admin_password", "Admin@MedLink2026"))
+# فشل-مغلق: لا توجد كلمة سر افتراضية أبداً — بيانات الإدارة تأتي من الأسرار فقط.
+# أي قيمة افتراضية في الكود المنشور تعني أن أي شخص يستطيع فتح اللوحة.
+_admin_cfg = st.secrets.get("admin", {}) if "admin" in st.secrets else {}
+ADMIN_USERNAME = _admin_cfg.get("username")
+ADMIN_PASSWORD = _admin_cfg.get("password")
+
+if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+    st.error(
+        "🚨 لم يتم تكوين بيانات دخول الإدارة بعد.\n\n"
+        "أضف القسم التالي في **Secrets** الخاص بتطبيق Streamlit Cloud ثم أعد تحميل الصفحة:\n\n"
+        "```toml\n[admin]\nusername = \"اسم_الإدارة\"\npassword = \"كلمة_سر_قوية_جديدة\"\n```"
+    )
+    st.stop()
 
 if not st.session_state["admin_authenticated"]:
     st.markdown("""
@@ -46,7 +58,9 @@ if not st.session_state["admin_authenticated"]:
             login_btn = st.form_submit_button("🚀 تسجيل الدخول", type="primary", use_container_width=True)
 
             if login_btn:
-                if user_in == ADMIN_USERNAME and pass_in == ADMIN_PASSWORD:
+                ok_user = hmac.compare_digest(str(user_in), str(ADMIN_USERNAME))
+                ok_pass = hmac.compare_digest(str(pass_in), str(ADMIN_PASSWORD))
+                if ok_user and ok_pass:
                     st.session_state["admin_authenticated"] = True
                     st.success("✅ تم التحقق بنجاح. جاري فتح لوحة التحكم...")
                     st.rerun()
