@@ -3,11 +3,13 @@
    Libyan Medical Theme - Full Light & Dark Mode Support
    ============================================================ */
 
+/* استيراد الخط فقط بدون محاولة استبدال أيقونات Material */
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
 
 /* ── الخط والاتجاه العام ── */
-*, *::before, *::after {
-  font-family: 'Cairo', system-ui, -apple-system, sans-serif !important;
+/* استثناء عناصر الأيقونات حتى لا تظهر كنص مقروء مثل _double_arrow_left */
+:not([class*="material-icons"]):not([class*="material-symbols"]):not([data-testid*="Icon"]):not(i):not(svg) {
+  font-family: 'Cairo', system-ui, -apple-system, sans-serif;
   box-sizing: border-box;
 }
 
@@ -19,6 +21,46 @@
   padding: 1.5rem 1rem 3rem !important;
   max-width: 950px !important;
   direction: rtl !important;
+}
+
+/* ============================================================
+   إخفاء شعار GitHub وقائمة Manage App وعناصر Streamlit
+   ============================================================ */
+
+/* إخفاء زر وشريط Manage App في أسفل اليمين بالكامل */
+[data-testid="stStatusWidget"],
+[data-testid="manage-app-button"],
+div[data-testid="stToolbarActions"],
+.viewerBadge_container__r5tak,
+.viewerBadge_link__1SuYY,
+#MainMenu ~ footer,
+footer,
+footer:after,
+.stActionButton,
+div[class*="viewerBadge"],
+div[class*="manageApp"],
+div[class*="StatusWidget"],
+[data-testid="stDecoration"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* إخفاء زر GitHub وزر Fork وزر التعديل في الهيدر العلوي */
+[data-testid="stHeader"] a[href*="github.com"],
+[data-testid="stHeader"] button[title*="GitHub"],
+[data-testid="stToolbar"] a[href*="github.com"],
+[data-testid="stToolbar"] [data-testid="stToolbarActions"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* حل مشكلة ظهور نص الأيقونة _double_arrow_left أو _double_arrow_right في زر طي السايدبار */
+[data-testid="collapsedControl"] span,
+[data-testid="stSidebarCollapseButton"] span,
+button[kind="header"] span {
+  font-family: 'Material Icons', 'Material Symbols Rounded', sans-serif !important;
 }
 
 /* محاذاة العناوين والنصوص لليمين */
@@ -91,7 +133,7 @@ button[kind="secondary"],
   color: #115e59 !important;
 }
 
-/* عند اختيار الوضع المظلم (يدوياً من الإعدادات أو عبر النظام) */
+/* عند اختيار الوضع المظلم */
 .stApp[data-theme="dark"] .stButton > button:not([kind="primary"]),
 [data-theme="dark"] .stButton > button:not([kind="primary"]) {
   background-color: #1e293b !important;
