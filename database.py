@@ -1,3 +1,5 @@
+import re
+
 import streamlit as st
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -6,8 +8,32 @@ from werkzeug.security import generate_password_hash, check_password_hash
 def get_connection():
     return psycopg2.connect(st.secrets["database"]["url"], cursor_factory=RealDictCursor)
 
+# --- التحقق من صحة المدخلات ---
+LIBYAN_MOBILE_RE = re.compile(r"^09\d{8}$")
+
+def is_valid_libyan_phone(phone):
+    """
+    رقم هاتف ليبي محمول: 10 أرقام تبدأ بـ 09 (مثال: 0912345678).
+    يقبل المسافات والشرطات والصيغة الدولية +218 / 00218.
+    """
+    if not phone:
+        return False
+    digits = re.sub(r"[\s\-()]", "", str(phone))
+    if digits.startswith("+218"):
+        digits = "0" + digits[4:]
+    elif digits.startswith("00218"):
+        digits = "0" + digits[5:]
+    return bool(LIBYAN_MOBILE_RE.match(digits))
+
 # --- دوال الطلبات والمسافات (PostGIS) ---
 def create_request(service, name, phone, gender, age, desc, loc_text, lat, lng, min_p, max_p):
+    if not is_valid_libyan_phone(phone):
+        raise ValueError(
+            "رقم الهاتف غير صالح: يجب أن يكون رقماً ليبياً من 10 أرقام يبدأ بـ 09 (مثال: 0912345678)."
+        )
+    if min_p is not None and max_p is not None and min_p > max_p:
+        raise ValueError("الحد الأدنى للسعر يجب أن يكون أصغر من أو يساوي الحد الأقصى.")
+
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -31,11 +57,15 @@ def get_nearby_pending_requests(nurse_gender, nurse_lat, nurse_lng, max_radius_k
     conn = get_connection()
     cur = conn.cursor()
     try:
+        # privacy: patient_phone مستبعد عمداً — رقم هاتف المريض لا يظهر للممرض
+        # إلا بعد قبول الطلب (عبر get_accepted_request_for_nurse / get_request_status)
         query = """
-            SELECT *, 
-            (ST_DistanceSphere(ST_MakePoint(location_lng, location_lat), ST_MakePoint(%s, %s)) / 1000.0) as distance_km
-            FROM requests 
-            WHERE status = 'pending' AND patient_gender = %s 
+            SELECT id, service_type, patient_name, patient_gender, patient_age,
+                   service_desc, location_text, location_lat, location_lng,
+                   min_price, max_price, status, accepted_nurse_id, created_at,
+                   (ST_DistanceSphere(ST_MakePoint(location_lng, location_lat), ST_MakePoint(%s, %s)) / 1000.0) as distance_km
+            FROM requests
+            WHERE status = 'pending' AND patient_gender = %s
             AND (ST_DistanceSphere(ST_MakePoint(location_lng, location_lat), ST_MakePoint(%s, %s)) / 1000.0) <= %s
             ORDER BY distance_km ASC
         """
@@ -271,6 +301,11 @@ def register_nurse(username, password, name, phone, gender, specialty, proof_inf
     """
     Task 1: Secure password hashing using werkzeug.security generate_password_hash.
     """
+    if not is_valid_libyan_phone(phone):
+        return False, (
+            "رقم الهاتف غير صالح: يجب أن يكون رقماً ليبياً من 10 أرقام يبدأ بـ 09 (مثال: 0912345678)."
+        )
+
     conn = get_connection()
     cur = conn.cursor()
     try:

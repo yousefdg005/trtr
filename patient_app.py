@@ -136,12 +136,17 @@ if st.session_state['request_id'] is None:
         elif not lat or not lng:
             st.error("⚠️ الرجاء تحديد الموقع على الخريطة عبر النقر أو زر 📍.")
         else:
-            req_id = database.create_request(
-                service, name, phone, gender, age,
-                service_desc, location_text, lat, lng, min_price, max_price
-            )
-            st.session_state['request_id'] = req_id
-            st.rerun()
+            try:
+                req_id = database.create_request(
+                    service, name, phone, gender, age,
+                    service_desc, location_text, lat, lng, min_price, max_price
+                )
+            except ValueError as ve:
+                # فشل التحقق من صحة المدخلات (صيغة الهاتف / ترتيب الأسعار)
+                st.error(f"⚠️ {ve}")
+            else:
+                st.session_state['request_id'] = req_id
+                st.rerun()
 
 # ══════════════════════════════════════════════
 # شاشة المتابعة التلقائية (بعد إرسال الطلب)
