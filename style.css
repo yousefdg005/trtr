@@ -14,6 +14,50 @@ h1, h2, h3, h4, h5, h6,
 }
 
 /* ============================================================
+   إخفاء شعار GitHub وأزرار الرأس وشريط Streamlit نهائياً
+   ============================================================ */
+
+/* 1. إخفاء شريط أدوات الرأس بالكامل (GitHub, Edit, Star, Share) مع ترك زر القائمة المنسدلة الثلاث نقاط وزر السايدبار */
+[data-testid="stToolbarActions"],
+[data-testid="stToolbar"] a,
+[data-testid="stToolbar"] button:not([id="MainMenu"]):not([data-testid="stSidebarCollapseButton"]),
+[data-testid="stHeader"] a,
+[data-testid="stHeader"] svg[data-testid="stIcon"],
+header a[href*="github.com"],
+header a,
+a[href*="github.com"],
+svg[aria-label="GitHub"],
+[aria-label="View source code on GitHub"],
+[title*="GitHub"],
+[title*="Fork"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* 2. إخفاء زر Manage App وشارة Streamlit في أسفل الشاشة نهائياً */
+[data-testid="manage-app-button"],
+div[data-testid="stStatusWidget"],
+.viewerBadge_container__r5tak,
+.viewerBadge_link__1SuYY,
+#MainMenu ~ footer,
+footer,
+div[class*="viewerBadge"],
+div[class*="manageApp"],
+div[class*="StatusWidget"],
+[data-testid="stDecoration"],
+iframe[title*="manage-app"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  z-index: -9999 !important;
+}
+
+/* ============================================================
    إصلاح محاذاة واتجاه الشريط الجانبي (Sidebar RTL Fix)
    ============================================================ */
 
@@ -36,7 +80,7 @@ h1, h2, h3, h4, h5, h6,
   padding: 1rem 1rem !important;
 }
 
-/* إخفاء الشريط الجانبي بالكامل عندما يتم طيّه */
+/* إخفاء الشريط الجانبي بالكامل عندما يتم طيّه لمنع قص النصوص عمودياً */
 [data-testid="stSidebar"][aria-expanded="false"] {
   margin-left: -500px !important;
   display: none !important;
@@ -47,30 +91,6 @@ h1, h2, h3, h4, h5, h6,
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapseButton"] {
   font-family: inherit !important;
-}
-
-/* ============================================================
-   إخفاء شعار GitHub وزر Manage App وأدوات Streamlit
-   ============================================================ */
-[data-testid="manage-app-button"],
-div[data-testid="stStatusWidget"],
-.viewerBadge_container__r5tak,
-.viewerBadge_link__1SuYY,
-#MainMenu ~ footer,
-footer,
-div[class*="viewerBadge"],
-div[class*="manageApp"],
-div[class*="StatusWidget"],
-[data-testid="stDecoration"],
-[data-testid="stHeader"] a[href*="github.com"],
-[data-testid="stHeader"] button[title*="GitHub"],
-[data-testid="stToolbar"] a[href*="github.com"] {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  height: 0 !important;
-  width: 0 !important;
 }
 
 /* محاذاة العناوين والنصوص لليمين */
