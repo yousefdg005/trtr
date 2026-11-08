@@ -21,6 +21,42 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════
+# حماية ومصادقة لوحة الإدارة
+# ══════════════════════════════════════════════
+if "admin_authenticated" not in st.session_state:
+    st.session_state["admin_authenticated"] = False
+
+# قراءة بيانات الدخول من secrets أو استخدام قيم افتراضية آمنة
+ADMIN_USERNAME = st.secrets.get("admin", {}).get("username", "admin") if "admin" in st.secrets else "admin"
+ADMIN_PASSWORD = st.secrets.get("admin", {}).get("password", st.secrets.get("admin_password", "Admin@MedLink2026"))
+
+if not st.session_state["admin_authenticated"]:
+    st.markdown("""
+    <div class="app-header-banner" style="max-width:520px;margin:3rem auto 1.5rem auto;">
+      <div class="banner-title">🔐 تسجيل دخول الإدارة</div>
+      <div class="banner-subtitle">منطقة محمية · مركز العمليات والتحكم المركزي لنظام رعايتي</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_l, col_center, col_r = st.columns([1, 2, 1])
+    with col_center:
+        with st.form("admin_login_form"):
+            user_in = st.text_input("اسم المستخدم", placeholder="admin")
+            pass_in = st.text_input("كلمة المرور", type="password", placeholder="••••••••")
+            login_btn = st.form_submit_button("🚀 تسجيل الدخول", type="primary", use_container_width=True)
+
+            if login_btn:
+                if user_in == ADMIN_USERNAME and pass_in == ADMIN_PASSWORD:
+                    st.session_state["admin_authenticated"] = True
+                    st.success("✅ تم التحقق بنجاح. جاري فتح لوحة التحكم...")
+                    st.rerun()
+                else:
+                    st.error("⚠️ اسم المستخدم أو كلمة المرور غير صحيحة.")
+
+        st.caption("🔒 يتم تكوين بيانات اعتماد المسؤول في ملف `.streamlit/secrets.toml`.")
+    st.stop()
+
+# ══════════════════════════════════════════════
 # الشريط الجانبي - تحكم النظام
 # ══════════════════════════════════════════════
 st.sidebar.markdown("""
@@ -51,6 +87,11 @@ st.sidebar.markdown("---")
 if st.sidebar.button("🔄 تحديث البيانات الآن", use_container_width=True):
     st.rerun()
 
+st.sidebar.markdown("---")
+if st.sidebar.button("🚪 تسجيل خروج الإدارة", use_container_width=True):
+    st.session_state["admin_authenticated"] = False
+    st.rerun()
+
 # ══════════════════════════════════════════════
 # الهيدر الرئيسي
 # ══════════════════════════════════════════════
@@ -74,13 +115,15 @@ pending_payments = database.get_pending_payments()
 
 pending_req_count = sum(1 for r in all_requests if r['status'] == 'pending')
 accepted_req_count = sum(1 for r in all_requests if r['status'] == 'accepted')
+completed_req_count = sum(1 for r in all_requests if r['status'] == 'completed')
 active_nurses = sum(1 for n in all_nurses if n['status'] == 'approved')
 
-m1, m2, m3, m4 = st.columns(4)
+m1, m2, m3, m4, m5 = st.columns(5)
 m1.metric("🩺 طلبات معلقة", pending_req_count)
-m2.metric("✅ مهام نشطة", accepted_req_count)
-m3.metric("👨‍⚕️ ممرضون نشطون", active_nurses)
-m4.metric("⏳ طلبات انضمام", len(pending_nurses))
+m2.metric("🚑 مهام نشطة", accepted_req_count)
+m3.metric("✨ مهام مكتملة", completed_req_count)
+m4.metric("👨‍⚕️ ممرضون نشطون", active_nurses)
+m5.metric("⏳ طلبات انضمام", len(pending_nurses))
 
 st.markdown("---")
 
@@ -109,6 +152,7 @@ with tab1:
         display_df['الحالة'] = display_df['الحالة'].replace({
             'pending':              '⏳ معلق',
             'accepted':             '✅ جاري التنفيذ',
+            'completed':            '✨ مكتمل بنجاح',
             'cancelled_by_patient': '🔴 مُلغى من المريض',
             'cancelled_by_nurse':   '🟠 مُلغى من الممرض',
         })

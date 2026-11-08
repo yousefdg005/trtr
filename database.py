@@ -72,11 +72,35 @@ def get_all_requests():
 
 def accept_request(req_id, nurse_id):
     """
-    Race condition guard + Debt standing validation check.
+    Race condition guard + Active task check + Debt standing validation check.
+    Returns: (bool, str) -> (success, message)
     """
     conn = get_connection()
     cur = conn.cursor()
     try:
+        # 1. التحقق من أن الممرض مسجل وفي وضع نظامي سليم
+        cur.execute("SELECT status, debt FROM nurses WHERE id = %s", (nurse_id,))
+        nurse = cur.fetchone()
+        if not nurse:
+            conn.rollback()
+            return False, "بيانات الممرض غير موجودة."
+        if nurse['status'] != 'approved':
+            conn.rollback()
+            return False, "حسابك غير مفعل أو موقوف حالياً."
+        if nurse['debt'] >= 50:
+            conn.rollback()
+            return False, "تم إيقاف حسابك مؤقتاً لتجاوز حد الديون المسموح (50 د.ل)."
+
+        # 2. منع قبول أي طلب جديد إذا كان لدى الممرض مهمة نشطة قيد التنفيذ
+        cur.execute(
+            "SELECT id FROM requests WHERE accepted_nurse_id = %s AND status = 'accepted'",
+            (nurse_id,)
+        )
+        if cur.fetchone():
+            conn.rollback()
+            return False, "لديك بالفعل مهمة نشطة قيد التنفيذ حالياً. يجب إتمامها أو إلغاؤها أولاً قبل قبول طلب جديد."
+
+        # 3. محاولة حجز الطلب بشكل ذري ومحمي من التزامن (Race Condition)
         cur.execute(
             """UPDATE requests 
                SET status = 'accepted', accepted_nurse_id = %s 
@@ -85,20 +109,40 @@ def accept_request(req_id, nurse_id):
         )
         if cur.rowcount == 0:
             conn.rollback()
-            return False
+            return False, "عذراً، تم استلام هذا الطلب من ممرض آخر للتو أو لم يعد متاحاً."
 
-        # التحقق من أن الممرض في وضع جيد وليست عليه ديون متجاوزة
-        cur.execute("SELECT status FROM nurses WHERE id = %s", (nurse_id,))
-        nurse = cur.fetchone()
-        if not nurse or nurse['status'] != 'approved':
-            conn.rollback()
-            return False
-
+        # 4. إضافة عمولة النظام وحظر الحساب إذا وصل الحد الأقصى للديون
         cur.execute("UPDATE nurses SET debt = debt + 10 WHERE id = %s RETURNING debt", (nurse_id,))
         nurse_row = cur.fetchone()
         if nurse_row and nurse_row['debt'] >= 50:
             cur.execute("UPDATE nurses SET status = 'debt_blocked' WHERE id = %s", (nurse_id,))
 
+        conn.commit()
+        return True, "تم قبول واستلام الطلب بنجاح."
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        conn.close()
+
+def complete_request(req_id, nurse_id):
+    """
+    إتمام المهمة بعد تقديم الرعاية للمريض بنجاح من قبل الممرض المستلم.
+    يتم تغيير حالة الطلب من 'accepted' إلى 'completed'.
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """UPDATE requests 
+               SET status = 'completed' 
+               WHERE id = %s AND status = 'accepted' AND accepted_nurse_id = %s""",
+            (req_id, nurse_id)
+        )
+        if cur.rowcount == 0:
+            conn.rollback()
+            return False
         conn.commit()
         return True
     except Exception:

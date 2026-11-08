@@ -222,9 +222,18 @@ else:
         st_folium(m, height=280, use_container_width=True)
 
         st.markdown("---")
-        if st.button("❌ إلغاء المهمة (استرداد العمولة وإلغاء الطلب)", use_container_width=True):
-            database.cancel_request_by_nurse(active_request['id'], nurse['id'])
-            st.rerun()
+        col_comp, col_canc = st.columns(2)
+        with col_comp:
+            if st.button("✅ إتمام المهمة بنجاح (إنهاء الخدمة)", type="primary", use_container_width=True):
+                if database.complete_request(active_request['id'], nurse['id']):
+                    st.success("🎉 أحسنت! تم إتمام المهمة الطبية بنجاح وتحديث السجل.")
+                    st.rerun()
+                else:
+                    st.error("تعذر إتمام المهمة، يرجى المحاولة لاحقاً.")
+        with col_canc:
+            if st.button("❌ إلغاء المهمة (استرداد العمولة وإلغاء الطلب)", use_container_width=True):
+                database.cancel_request_by_nurse(active_request['id'], nurse['id'])
+                st.rerun()
 
     # ── في حالة الحظر بالديون ──
     elif nurse['status'] == 'debt_blocked':
@@ -308,18 +317,18 @@ else:
                         </div>
                         """, unsafe_allow_html=True)
 
-                        # Task 3: معالجة الـ Race Condition مع إرجاع تنبيه أنيق إذا استلمه ممرض آخر
+                        # Task 3: معالجة الـ Race Condition مع منع تكرار المهام
                         if st.button(
                             "✅ قبول واستلام هذا الطلب",
                             key=f"btn_{req['id']}",
                             type="primary",
                             use_container_width=True
                         ):
-                            success = database.accept_request(req['id'], nurse['id'])
+                            success, msg = database.accept_request(req['id'], nurse['id'])
                             if success:
                                 st.rerun()
                             else:
-                                st.error("عذراً، تم استلام هذا الطلب من ممرض آخر للتو.")
+                                st.error(msg)
 
                         st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
         else:

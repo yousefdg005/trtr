@@ -129,6 +129,8 @@ if st.session_state['request_id'] is None:
             st.error("⚠️ الرجاء كتابة اسم المريض.")
         elif not phone:
             st.error("⚠️ الرجاء كتابة رقم الهاتف للتواصل.")
+        elif min_price > max_price:
+            st.error("⚠️ الحد الأدنى للميزانية لا يمكن أن يتجاوز الحد الأقصى.")
         elif not location_text:
             st.error("⚠️ الرجاء إدخال وصف العنوان.")
         elif not lat or not lng:
@@ -146,7 +148,6 @@ if st.session_state['request_id'] is None:
 # ══════════════════════════════════════════════
 else:
     st_autorefresh(interval=5000, key="patient_refresh")
-    # Task 4 & 5: get_request_status performs SQL JOIN with nurses to get accepted_by (name) and phone
     status_data = database.get_request_status(st.session_state['request_id'])
 
     # ── في حال قبول الطلب من ممرض ──
@@ -175,6 +176,25 @@ else:
         st.markdown("---")
         if st.button("❌ إلغاء الطلبية (لظرف طارئ)", use_container_width=True):
             database.cancel_request_by_patient(st.session_state['request_id'])
+            st.session_state['request_id'] = None
+            st.rerun()
+
+    # ── في حال اكتمال الخدمة بنجاح ──
+    elif status_data and status_data['status'] == 'completed':
+        st.balloons()
+        st.markdown("""
+        <div class="app-header-banner">
+          <div class="banner-title">✨ تم إكمال الخدمة الطبية بنجاح!</div>
+          <div class="banner-subtitle">حمداً لله على سلامتكم · شكراً لاختياركم نظام رعايتي</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        nurse_name = status_data.get('accepted_by') or "الممرض المعتمد"
+        st.success(f"✅ تم تقديم الرعاية المطلوبة بنجاح بواسطة: **{nurse_name}**")
+        st.info("نتمنى لكم دوام الصحة والعافية! بإمكانكم تقديم طلب رعاية جديد في أي وقت.")
+
+        st.markdown("---")
+        if st.button("🔄 تقديم طلب رعاية جديد", type="primary", use_container_width=True):
             st.session_state['request_id'] = None
             st.rerun()
 
