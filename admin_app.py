@@ -42,6 +42,16 @@ if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     )
     st.stop()
 
+# بصمة بيانات الإدارة تدخل في توقيع رمز الجلسة: تغيير كلمة السر يُبطل كل الجلسات القديمة.
+import hashlib
+import session_token
+_ADMIN_BIND = hashlib.sha256(f"{ADMIN_USERNAME}\x00{ADMIN_PASSWORD}".encode()).hexdigest()
+
+# استعادة جلسة الإدارة بعد إعادة تحميل الصفحة
+if not st.session_state["admin_authenticated"]:
+    if session_token.load_session("admin", bind=_ADMIN_BIND) == "admin":
+        st.session_state["admin_authenticated"] = True
+
 if not st.session_state["admin_authenticated"]:
     st.markdown("""
     <div class="app-header-banner" style="max-width:520px;margin:3rem auto 1.5rem auto;">
@@ -62,6 +72,7 @@ if not st.session_state["admin_authenticated"]:
                 ok_pass = hmac.compare_digest(str(pass_in), str(ADMIN_PASSWORD))
                 if ok_user and ok_pass:
                     st.session_state["admin_authenticated"] = True
+                    session_token.save_session("admin", "admin", session_token.ADMIN_TTL, bind=_ADMIN_BIND)
                     st.success("✅ تم التحقق بنجاح. جاري فتح لوحة التحكم...")
                     st.rerun()
                 else:
@@ -104,6 +115,7 @@ if st.sidebar.button("🔄 تحديث البيانات الآن", use_container_
 st.sidebar.markdown("---")
 if st.sidebar.button("🚪 تسجيل خروج الإدارة", use_container_width=True):
     st.session_state["admin_authenticated"] = False
+    session_token.clear_session()
     st.rerun()
 
 # ══════════════════════════════════════════════

@@ -4,6 +4,7 @@ from folium import plugins
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 import database
+import session_token
 
 st.set_page_config(
     page_title="نظام رعايتي - طلب ممرض منزلي",
@@ -37,6 +38,20 @@ st.markdown("""
 # ── تهيئة الجلسة ──
 if 'request_id' not in st.session_state:
     st.session_state['request_id'] = None
+
+# ── استعادة الطلب بعد إعادة تحميل الصفحة ──
+# رقم الطلب محفوظ في الرابط داخل رمز موقّع (وليس كرقم صريح) حتى لا يستطيع
+# أحد تخمين أرقام طلبات الآخرين ورؤية هاتف الممرض أو إلغاء طلباتهم.
+if st.session_state['request_id'] is None:
+    restored_req = session_token.load_session("patient")
+    if restored_req is not None:
+        st.session_state['request_id'] = restored_req
+
+
+def _reset_patient_request():
+    st.session_state['request_id'] = None
+    st.session_state.pop('celebrated_status', None)
+    session_token.clear_session()
 
 # حدود طرابلس (المركز، قرجي، الأندلس، سوق الجمعة)
 TRIPOLI_BOUNDS = {"min_lat": 32.83, "max_lat": 32.92, "min_lng": 13.11, "max_lng": 13.28}
@@ -146,6 +161,7 @@ if st.session_state['request_id'] is None:
                 st.error(f"⚠️ {ve}")
             else:
                 st.session_state['request_id'] = req_id
+                session_token.save_session("patient", req_id, session_token.PATIENT_TTL)
                 st.rerun()
 
 # ══════════════════════════════════════════════
@@ -157,7 +173,9 @@ else:
 
     # ── في حال قبول الطلب من ممرض ──
     if status_data and status_data['status'] == 'accepted':
-        st.balloons()
+        if st.session_state.get('celebrated_status') != 'accepted':
+            st.balloons()
+            st.session_state['celebrated_status'] = 'accepted'
         st.markdown("""
         <div class="app-header-banner">
           <div class="banner-title">🎉 تم قبول طلبك بنجاح!</div>
@@ -181,12 +199,14 @@ else:
         st.markdown("---")
         if st.button("❌ إلغاء الطلبية (لظرف طارئ)", use_container_width=True):
             database.cancel_request_by_patient(st.session_state['request_id'])
-            st.session_state['request_id'] = None
+            _reset_patient_request()
             st.rerun()
 
     # ── في حال اكتمال الخدمة بنجاح ──
     elif status_data and status_data['status'] == 'completed':
-        st.balloons()
+        if st.session_state.get('celebrated_status') != 'completed':
+            st.balloons()
+            st.session_state['celebrated_status'] = 'completed'
         st.markdown("""
         <div class="app-header-banner">
           <div class="banner-title">✨ تم إكمال الخدمة الطبية بنجاح!</div>
@@ -200,7 +220,7 @@ else:
 
         st.markdown("---")
         if st.button("🔄 تقديم طلب رعاية جديد", type="primary", use_container_width=True):
-            st.session_state['request_id'] = None
+            _reset_patient_request()
             st.rerun()
 
     # ── في انتظار قبول ممرض ──
@@ -218,7 +238,7 @@ else:
         st.markdown("---")
         if st.button("❌ إلغاء الطلب", use_container_width=True):
             database.cancel_request_by_patient(st.session_state['request_id'])
-            st.session_state['request_id'] = None
+            _reset_patient_request()
             st.rerun()
 
     # ── إذا أُلغيت الطلبية ──
@@ -226,5 +246,5 @@ else:
         st.error("❌ تم إلغاء هذه الطلبية.")
         st.markdown("---")
         if st.button("🔄 العودة لتقديم طلب جديد", type="primary", use_container_width=True):
-            st.session_state['request_id'] = None
+            _reset_patient_request()
             st.rerun()

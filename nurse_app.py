@@ -6,6 +6,7 @@ from streamlit_autorefresh import st_autorefresh
 import os
 import uuid
 import database
+import session_token
 
 st.set_page_config(
     page_title="نظام رعايتي - بوابة الممرضين",
@@ -29,10 +30,39 @@ if not database.get_system_status():
     st.stop()
 
 # ── تهيئة الجلسة ──
+def _accept_request_cb(req_id, nurse_id):
+    """تُنفَّذ عند الضغط على زر القبول قبل إعادة تشغيل السكربت."""
+    try:
+        success, msg = database.accept_request(req_id, nurse_id)
+    except Exception as exc:
+        success, msg = False, f"تعذر قبول الطلب بسبب خطأ في الخادم: {exc}"
+    if not success:
+        st.session_state['accept_error'] = msg
+
 if 'nurse_data' not in st.session_state:
     st.session_state['nurse_data'] = None
 if 'auth_mode' not in st.session_state:
     st.session_state['auth_mode'] = 'login'
+if 'nurse_loc' not in st.session_state:
+    st.session_state['nurse_loc'] = None
+
+# ── استعادة الجلسة بعد إعادة تحميل الصفحة (رمز موقّع في الرابط) ──
+if st.session_state['nurse_data'] is None:
+    restored_id = session_token.load_session("nurse")
+    if restored_id is not None:
+        restored = database.get_nurse_by_id(restored_id)
+        if restored and restored['status'] in ('approved', 'debt_blocked'):
+            st.session_state['nurse_data'] = restored
+        else:
+            session_token.clear_session()
+
+# ── استعادة آخر موقع محدد للممرض (محفوظ في الرابط أيضاً) ──
+if st.session_state['nurse_loc'] is None and st.query_params.get("loc"):
+    try:
+        _lat, _lng = (float(v) for v in st.query_params.get("loc").split(","))
+        st.session_state['nurse_loc'] = (_lat, _lng)
+    except Exception:
+        pass
 
 # ══════════════════════════════════════════════
 # شاشة المصادقة (تسجيل الدخول / التسجيل)
@@ -66,6 +96,7 @@ if st.session_state['nurse_data'] is None:
                         st.error("🚫 تم حظر حسابك من قبل الإدارة. يُرجى التواصل مع الدعم الفني.")
                     else:
                         st.session_state['nurse_data'] = nurse
+                        session_token.save_session("nurse", nurse['id'], session_token.NURSE_TTL)
                         st.rerun()
                 else:
                     st.error("⚠️ اسم المستخدم أو كلمة المرور غير صحيحة.")
@@ -152,8 +183,9 @@ else:
 
     # فحص أمني وتحديث الحالة لحظياً عبر معرف الممرض nurse['id']
     current_status = database.get_nurse_by_id(nurse['id'])
-    if not current_status or current_status['status'] == 'blocked':
+    if not current_status or current_status['status'] not in ('approved', 'debt_blocked'):
         st.session_state['nurse_data'] = None
+        session_token.clear_session()
         st.rerun()
 
     nurse = current_status
@@ -172,6 +204,10 @@ else:
         st.markdown("<div style='margin-top:0.4rem;'></div>", unsafe_allow_html=True)
         if st.button("🚪 خروج", use_container_width=True):
             st.session_state['nurse_data'] = None
+            st.session_state['nurse_loc'] = None
+            session_token.clear_session()
+            if "loc" in st.query_params:
+                del st.query_params["loc"]
             st.rerun()
 
     # ── مؤشر الديون ──
@@ -265,23 +301,44 @@ else:
 
         st.markdown("---")
         st.markdown("### 🗺️ تحديد موقعك الميداني لتلقي الطلبات")
-        st.info("📍 اضغط على زر 📍 على الخريطة لتحديد موقعك بدقة أو انقر مباشرة.")
+        st.info("📍 انقر على موقعك في الخريطة لتحديده (زر 📍 يقرّب الخريطة إلى مكانك الحالي، ثم انقر عليه).")
 
-        m_loc = folium.Map(location=[32.8872, 13.1913], zoom_start=12)
+        saved_loc = st.session_state['nurse_loc']
+        m_loc = folium.Map(location=list(saved_loc) if saved_loc else [32.8872, 13.1913],
+                           zoom_start=14 if saved_loc else 12)
         plugins.LocateControl(
             position="topleft", drawCircle=False, drawMarker=True,
             strings={"title": "📍 موقعي الحالي"}
         ).add_to(m_loc)
         m_loc.add_child(folium.LatLngPopup())
-        loc_data = st_folium(m_loc, height=260, use_container_width=True)
+        if saved_loc:
+            folium.Marker(list(saved_loc), tooltip="📍 موقعي المحدد",
+                          icon=folium.Icon(color='green', icon='user')).add_to(m_loc)
 
-        my_lat, my_lng = None, None
+        # إصلاح زر القبول: مفتاح ثابت للخريطة + إرجاع النقرة فقط.
+        # سابقاً كان ظهور قائمة الطلبات وزر "قبول" مرتبطاً بقيمة last_clicked القادمة
+        # من الخريطة في نفس الدورة؛ عند الضغط على الزر (أو التحديث التلقائي كل 5 ثوانٍ)
+        # يُعاد تشغيل السكربت وتُبنى الخريطة من جديد فتعود last_clicked فارغة،
+        # فيختفي الزر قبل معالجة الضغطة ولا يحدث شيء.
+        loc_data = st_folium(
+            m_loc, height=260, use_container_width=True,
+            key="nurse_location_map", returned_objects=["last_clicked"]
+        )
+
         if loc_data and loc_data.get("last_clicked"):
-            my_lat = loc_data["last_clicked"]["lat"]
-            my_lng = loc_data["last_clicked"]["lng"]
-            st.success("✅ تم تحديد موقعك الجغرافي بنجاح. نطاق البحث: 10 كم.")
+            clicked = (round(loc_data["last_clicked"]["lat"], 6),
+                       round(loc_data["last_clicked"]["lng"], 6))
+            if clicked != st.session_state['nurse_loc']:
+                # حفظ الموقع في الجلسة وفي الرابط حتى لا يضيع مع التحديث أو إعادة التحميل
+                st.session_state['nurse_loc'] = clicked
+                st.query_params["loc"] = f"{clicked[0]},{clicked[1]}"
+                st.rerun()
 
-            is_online = st.toggle("🟢 أنا متاح الآن (بدء استقبال الطلبات القريبة)")
+        if st.session_state['nurse_loc']:
+            my_lat, my_lng = st.session_state['nurse_loc']
+            st.success("✅ تم تحديد موقعك الجغرافي بنجاح. نطاق البحث: 10 كم. (انقر على الخريطة لتغييره)")
+
+            is_online = st.toggle("🟢 أنا متاح الآن (بدء استقبال الطلبات القريبة)", key="nurse_online")
 
             if is_online:
                 st_autorefresh(interval=5000, key="nurse_refresh")
@@ -291,6 +348,9 @@ else:
 
                 st.markdown("---")
                 st.markdown("### 📋 الطلبات القريبة المتاحة")
+
+                if st.session_state.get('accept_error'):
+                    st.error(st.session_state.pop('accept_error'))
 
                 if len(pending_requests) == 0:
                     st.info("🔍 لا توجد طلبات معلقة قريبة منك حالياً. يتم التحديث تلقائياً كل 5 ثوانٍ...")
@@ -317,17 +377,16 @@ else:
                         """, unsafe_allow_html=True)
 
                         # Task 3: معالجة الـ Race Condition مع منع تكرار المهام
-                        if st.button(
+                        # نستخدم on_click: يُنفَّذ القبول قبل إعادة رسم الصفحة مباشرة،
+                        # فلا يضيع الضغط حتى لو تزامن مع التحديث التلقائي.
+                        st.button(
                             "✅ قبول واستلام هذا الطلب",
                             key=f"btn_{req['id']}",
                             type="primary",
-                            use_container_width=True
-                        ):
-                            success, msg = database.accept_request(req['id'], nurse['id'])
-                            if success:
-                                st.rerun()
-                            else:
-                                st.error(msg)
+                            use_container_width=True,
+                            on_click=_accept_request_cb,
+                            args=(req['id'], nurse['id']),
+                        )
 
                         st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
         else:

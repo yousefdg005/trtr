@@ -84,6 +84,10 @@ Ensure you have a **PostgreSQL** database with the **PostGIS** extension enabled
 ```toml
 [database]
 url = "postgresql://user:password@host:port/dbname"
+
+# مفتاح توقيع رموز الجلسة (يحفظ تسجيل الدخول وطلب المريض عند إعادة تحميل الصفحة)
+[auth]
+secret_key = "long-random-string"
 ```
 
 ### 5. Run the Applications
