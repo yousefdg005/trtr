@@ -519,3 +519,50 @@ def test_register_nurse_rejects_invalid_phone(fresh_db, db):
     assert ok is False and "الهاتف" in msg, f"expected a phone-format rejection, got: {msg!r}"
     assert db.fetchone("SELECT COUNT(*) AS c FROM nurses")["c"] == 0, \
         "no nurse row must be created for an invalid phone"
+
+
+def test_admin_delete_nurse_permanently(fresh_db, make_nurse, make_request, db, tmp_path):
+    import os
+    fake_license = tmp_path / "license.jpg"
+    fake_license.write_text("fake license content")
+    assert fake_license.exists()
+
+    username = f"nurse_del_{os.urandom(3).hex()}"
+    ok, _ = database.register_nurse(username, "pw123456", "ممرض للحذف", "0911223344",
+                                    "ذكر", "تمريض عام", f"FILE_PATH:{fake_license}###ملاحظات")
+    assert ok
+    nurse_row = db.fetchone("SELECT id FROM nurses WHERE username = %s", (username,))
+    nurse_id = nurse_row["id"]
+    database.update_nurse_status(nurse_id, "approved")
+
+    # دفعة مسجلة للممرض
+    database.submit_payment(nurse_id, "12345678901234", 20)
+    assert db.fetchone("SELECT COUNT(*) AS c FROM payments WHERE nurse_id = %s", (nurse_id,))["c"] == 1
+
+    # طلب تمريض نشط مقبول بواسطة هذا الممرض
+    req_id = make_request(gender="ذكر")
+    ok, _ = database.accept_request(req_id, nurse_id)
+    assert ok
+    assert db.fetchone("SELECT status, accepted_nurse_id FROM requests WHERE id = %s", (req_id,))["status"] == "accepted"
+
+    # حذف الممرض نهائياً عبر الإدارة
+    success, msg = database.delete_nurse(nurse_id)
+    assert success is True
+    assert "تم حذف" in msg
+
+    # التأكد من مسح بيانات الممرض وسجلات الدفع الخاصة به
+    assert db.fetchone("SELECT * FROM nurses WHERE id = %s", (nurse_id,)) is None
+    assert db.fetchone("SELECT COUNT(*) AS c FROM payments WHERE nurse_id = %s", (nurse_id,))["c"] == 0
+
+    # التأكد من إعادة الطلب النشط للحالة المعلقة وفك الارتباط لكي لا يضيع طلب المريض
+    req_after = db.fetchone("SELECT status, accepted_nurse_id FROM requests WHERE id = %s", (req_id,))
+    assert req_after["status"] == "pending"
+    assert req_after["accepted_nurse_id"] is None
+
+    # التأكد من حذف ملف الوثيقة من القرص
+    assert not fake_license.exists()
+
+    # محاولة الحذف مجدداً ترجع خطأ لعدم وجود السجل
+    success2, msg2 = database.delete_nurse(nurse_id)
+    assert success2 is False
+    assert "غير موجود" in msg2

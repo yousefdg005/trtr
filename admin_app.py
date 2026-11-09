@@ -234,7 +234,7 @@ with tab2:
                 with st.expander("🔍 اضغط هنا لمعاينة صورة وثيقة / ترخيص المزاولة"):
                     st.image(base64_data, caption=f"وثيقة مزاولة المهنة للممرض: {n['name']}", use_container_width=True)
 
-            col_a, col_r = st.columns(2)
+            col_a, col_r, col_d = st.columns([1, 1, 1])
             with col_a:
                 if st.button("✅ قبول وتفعيل العضوية", key=f"accept_{n['id']}", type="primary", use_container_width=True):
                     database.update_nurse_status(n['id'], 'approved')
@@ -243,6 +243,16 @@ with tab2:
                 if st.button("❌ رفض الطلب", key=f"reject_{n['id']}", use_container_width=True):
                     database.update_nurse_status(n['id'], 'rejected')
                     st.rerun()
+            with col_d:
+                with st.popover("🗑️ حذف نهائي", use_container_width=True):
+                    st.caption(f"حذف طلب {n['name']} نهائياً مع وثائقه")
+                    if st.button("🔥 تأكيد الحذف", key=f"del_pending_{n['id']}", type="primary", use_container_width=True):
+                        ok, msg = database.delete_nurse(n['id'])
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
 
             st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
 
@@ -294,6 +304,20 @@ with tab3:
                         new_st = 'debt_blocked' if n['debt'] >= 50 else 'approved'
                         database.update_nurse_status(n['id'], new_st)
                         st.rerun()
+                elif n['status'] == 'rejected':
+                    if st.button("✅ تفعيل الحساب", key=f"approve_{n['id']}", type="primary", use_container_width=True):
+                        database.update_nurse_status(n['id'], 'approved')
+                        st.rerun()
+            with col_b2:
+                with st.popover("🗑️ حذف الحساب نهائياً", use_container_width=True):
+                    st.warning(f"⚠️ هل أنت متأكد من حذف حساب الممرض **{n['name']}** نهائياً؟\n\nلا يمكن التراجع عن هذا الإجراء وسيتم مسح كافة سجلاته ووثائقه.")
+                    if st.button("🔥 تأكيد الحذف النهائي", key=f"del_nurse_{n['id']}", type="primary", use_container_width=True):
+                        ok, msg = database.delete_nurse(n['id'])
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
 
             st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
 

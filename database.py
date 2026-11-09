@@ -404,6 +404,67 @@ def get_all_nurses():
         cur.close()
         conn.close()
 
+def delete_nurse(nurse_id):
+    """
+    حذف حساب الممرض نهائياً من قاعدة البيانات مع تنظيف كافة البيانات التابعة:
+    1. إعادة الطلبات النشطة قيد التنفيذ إلى معلقة (pending) لكي لا تضيع على المرضى.
+    2. فك ارتباط الممرض بالطلبات السابقة المكتملة أو الملغاة.
+    3. حذف سجلات الدفعات المرتبطة بالممرض.
+    4. حذف سجل الممرض من جدول nurses.
+    5. حذف ملف وثيقة المزاولة من القرص إن وُجد.
+    Returns: (bool, str) -> (success, message)
+    """
+    import os
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, name, proof_info FROM nurses WHERE id = %s", (nurse_id,))
+        nurse = cur.fetchone()
+        if not nurse:
+            conn.rollback()
+            return False, "الممرض غير موجود أو تم حذفه مسبقاً."
+
+        # 1. إعادة أي طلب نشط قيد التنفيذ مع هذا الممرض إلى الحالة المعلقة
+        cur.execute(
+            """UPDATE requests 
+               SET status = 'pending', accepted_nurse_id = NULL 
+               WHERE accepted_nurse_id = %s AND status = 'accepted'""",
+            (nurse_id,)
+        )
+
+        # 2. فك الارتباط من أي طلبات سابقة تاريخية
+        cur.execute(
+            "UPDATE requests SET accepted_nurse_id = NULL WHERE accepted_nurse_id = %s",
+            (nurse_id,)
+        )
+
+        # 3. حذف سجلات الدفعات التابعة له
+        cur.execute("DELETE FROM payments WHERE nurse_id = %s", (nurse_id,))
+
+        # 4. حذف سجل الممرض نهائياً
+        cur.execute("DELETE FROM nurses WHERE id = %s", (nurse_id,))
+
+        conn.commit()
+
+        # 5. تنظيف ملف وثيقة المزاولة من القرص إن وُجد
+        proof = nurse.get('proof_info') or ""
+        if proof.startswith("FILE_PATH:"):
+            parts = proof.replace("FILE_PATH:", "").split("###", 1)
+            file_path = parts[0]
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
+
+        return True, f"تم حذف حساب الممرض ({nurse['name']}) وكافة سجلاته نهائياً بنجاح."
+    except Exception as e:
+        conn.rollback()
+        return False, f"حدث خطأ أثناء حذف الحساب: {e}"
+    finally:
+        cur.close()
+        conn.close()
+
 # --- دوال النظام والمدفوعات ---
 def get_system_status():
     conn = get_connection()
