@@ -4,77 +4,10 @@ import pandas as pd
 import os
 import io
 from datetime import datetime
+from reports import export_requests_excel, export_requests_csv
 
-def _export_requests_excel(requests_list):
-    """تحويل سجل الطلبات إلى ملف Excel منسق"""
-    if not requests_list:
-        df = pd.DataFrame()
-    else:
-        status_map = {
-            'pending':              'معلق',
-            'accepted':             'جاري التنفيذ',
-            'completed':            'مكتمل بنجاح',
-            'cancelled_by_patient': 'ملغى من المريض',
-            'cancelled_by_nurse':   'ملغى من الممرض',
-            'cancelled_by_admin':   'ملغى من الإدارة',
-        }
-        rows = []
-        for r in requests_list:
-            created_str = str(r.get('created_at', ''))[:19]
-            rows.append({
-                'رقم الطلب': r.get('id'),
-                'تاريخ ووقت الطلب': created_str,
-                'نوع الخدمة': r.get('service_type'),
-                'اسم المريض': r.get('patient_name'),
-                'هاتف المريض': r.get('patient_phone'),
-                'جنس المريض': r.get('patient_gender'),
-                'العمر': r.get('patient_age'),
-                'العنوان بالتفصيل': r.get('location_text'),
-                'الحد الأدنى للسعر (د.ل)': r.get('min_price'),
-                'الحد الأقصى للسعر (د.ل)': r.get('max_price'),
-                'حالة الطلب': status_map.get(r.get('status'), r.get('status')),
-                'الممرض المستلم': r.get('accepted_by') or '—',
-                'وصف الحالة': r.get('service_desc') or '—',
-            })
-        df = pd.DataFrame(rows)
-
-    buf = io.BytesIO()
-    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='سجل طلبات التمريض')
-    return buf.getvalue()
-
-def _export_requests_csv(requests_list):
-    """تحويل سجل الطلبات إلى ملف CSV بترميز UTF-8 مع BOM لدعم اللغة العربية في إكسل"""
-    if not requests_list:
-        return b""
-    status_map = {
-        'pending':              'معلق',
-        'accepted':             'جاري التنفيذ',
-        'completed':            'مكتمل بنجاح',
-        'cancelled_by_patient': 'ملغى من المريض',
-        'cancelled_by_nurse':   'ملغى من الممرض',
-        'cancelled_by_admin':   'ملغى من الإدارة',
-    }
-    rows = []
-    for r in requests_list:
-        created_str = str(r.get('created_at', ''))[:19]
-        rows.append({
-            'رقم الطلب': r.get('id'),
-            'تاريخ ووقت الطلب': created_str,
-            'نوع الخدمة': r.get('service_type'),
-            'اسم المريض': r.get('patient_name'),
-            'هاتف المريض': r.get('patient_phone'),
-            'جنس المريض': r.get('patient_gender'),
-            'العمر': r.get('patient_age'),
-            'العنوان بالتفصيل': r.get('location_text'),
-            'الحد الأدنى للسعر (د.ل)': r.get('min_price'),
-            'الحد الأقصى للسعر (د.ل)': r.get('max_price'),
-            'حالة الطلب': status_map.get(r.get('status'), r.get('status')),
-            'الممرض المستلم': r.get('accepted_by') or '—',
-            'وصف الحالة': r.get('service_desc') or '—',
-        })
-    df = pd.DataFrame(rows)
-    return df.to_csv(index=False).encode('utf-8-sig')
+_export_requests_excel = export_requests_excel
+_export_requests_csv = export_requests_csv
 
 st.set_page_config(
     page_title="نظام رعايتي - لوحة الإدارة",

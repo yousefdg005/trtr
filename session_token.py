@@ -44,7 +44,10 @@ def _secret() -> bytes:
     except Exception:
         key = None
     if not key:
-        key = "medlink-session-v1::" + str(st.secrets["database"]["url"])
+        try:
+            key = "medlink-session-v1::" + str(st.secrets["database"]["url"])
+        except Exception:
+            key = "medlink-session-v1-fallback-default-key-dev"
     return hashlib.sha256(str(key).encode()).digest()
 
 

@@ -118,34 +118,33 @@ def _sanitize_url(url: str) -> str:
     return urllib.parse.urlunparse(parts._replace(query=urllib.parse.urlencode(query)))
 
 
-TEST_URL = os.environ.get(TEST_URL_ENV, "").strip()
-
-if not TEST_URL:
-    pytest.skip(
-        f"{TEST_URL_ENV} is not set. Point it at a DEDICATED PostgreSQL+PostGIS test "
-        f"database (see tests/conftest.py header for a ready-made docker command). "
-        f"NEVER point it at the production database.",
-        allow_module_level=True,
-    )
-
-_host, _db = _host_and_db(TEST_URL)
-if any(frag in _host for frag in PROD_HOST_FRAGMENTS):
-    raise RuntimeError(
-        f"SAFETY ABORT: {TEST_URL_ENV} points at the production Neon endpoint "
-        f"({_host}) that is committed in .streamlit/secrets.toml. Create a "
-        f"separate test database and use its URL instead."
-    )
-
-_secrets_path = Path(__file__).resolve().parent.parent / ".streamlit" / "secrets.toml"
-if _secrets_path.exists():
-    _match = re.search(r'url\s*=\s*"([^"]+)"', _secrets_path.read_text(encoding="utf-8", errors="ignore"))
-    if _match and _host_and_db(_match.group(1).strip()) == (_host, _db):
-        raise RuntimeError(
-            f"SAFETY ABORT: {TEST_URL_ENV} targets the same database "
-            f"({_host}/{_db}) as .streamlit/secrets.toml. Use a dedicated test database."
+def get_test_url() -> str:
+    url = os.environ.get(TEST_URL_ENV, "").strip()
+    if not url:
+        pytest.skip(
+            f"{TEST_URL_ENV} is not set. Point it at a DEDICATED PostgreSQL+PostGIS test "
+            f"database (see tests/conftest.py header for a ready-made docker command). "
+            f"NEVER point it at the production database."
         )
 
-TEST_URL = _sanitize_url(TEST_URL)
+    _host, _db = _host_and_db(url)
+    if any(frag in _host for frag in PROD_HOST_FRAGMENTS):
+        raise RuntimeError(
+            f"SAFETY ABORT: {TEST_URL_ENV} points at the production Neon endpoint "
+            f"({_host}) that is committed in .streamlit/secrets.toml. Create a "
+            f"separate test database and use its URL instead."
+        )
+
+    _secrets_path = Path(__file__).resolve().parent.parent / ".streamlit" / "secrets.toml"
+    if _secrets_path.exists():
+        _match = re.search(r'url\s*=\s*"([^"]+)"', _secrets_path.read_text(encoding="utf-8", errors="ignore"))
+        if _match and _host_and_db(_match.group(1).strip()) == (_host, _db):
+            raise RuntimeError(
+                f"SAFETY ABORT: {TEST_URL_ENV} targets the same database "
+                f"({_host}/{_db}) as .streamlit/secrets.toml. Use a dedicated test database."
+            )
+
+    return _sanitize_url(url)
 
 
 def _connect(url: str) -> psycopg2.extensions.connection:
@@ -195,7 +194,8 @@ class _DB:
 @pytest.fixture(scope="session")
 def db_url():
     """Create (once) the dedicated test schema mirroring the app's implied schema."""
-    conn = psycopg2.connect(TEST_URL, cursor_factory=RealDictCursor)
+    url = get_test_url()
+    conn = psycopg2.connect(url, cursor_factory=RealDictCursor)
     conn.autocommit = True
     try:
         with conn.cursor() as cur:
@@ -220,17 +220,17 @@ def db_url():
         ) from exc
     finally:
         conn.close()
-    return TEST_URL
+    return url
 
 
 @pytest.fixture(autouse=True)
-def patched_connection(monkeypatch, db_url):
-    """Redirect database.get_connection() to the dedicated test DB for every test."""
-
-    def _test_connection():
-        return _connect(db_url)
-
-    monkeypatch.setattr(database, "get_connection", _test_connection)
+def patched_connection(monkeypatch, request):
+    """Redirect database.get_connection() to the dedicated test DB for tests using db."""
+    if any(f in request.fixturenames for f in ("db", "fresh_db", "db_url", "make_nurse", "make_request")):
+        url = request.getfixturevalue("db_url")
+        def _test_connection():
+            return _connect(url)
+        monkeypatch.setattr(database, "get_connection", _test_connection)
     yield
 
 
