@@ -296,6 +296,140 @@ def cancel_request_by_nurse(req_id, nurse_id):
         cur.close()
         conn.close()
 
+def cancel_request_by_admin(req_id):
+    """
+    إلغاء عملية تمريض نشطة أو معلقة من قِبل الإدارة:
+    - تحديث الحالة إلى 'cancelled_by_admin'.
+    - استرداد العمولة (خصم 10 د.ل) من الممرض إن كان الطلب مقبولاً لديه.
+    - فك الحظر عن الممرض إذا كان موقوفاً بسبب الديون وعاد رصيده لأقل من 50 د.ل.
+    Returns: (bool, str) -> (success, message)
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """UPDATE requests 
+               SET status = 'cancelled_by_admin' 
+               WHERE id = %s AND status IN ('pending', 'accepted') 
+               RETURNING accepted_nurse_id, status""",
+            (req_id,)
+        )
+        row = cur.fetchone()
+        if row is None:
+            conn.rollback()
+            return False, "الطلب غير موجود أو أنه غير نشط (مكتمل أو ملغى مسبقاً)."
+
+        if row['accepted_nurse_id']:
+            cur.execute(
+                "UPDATE nurses SET debt = GREATEST(debt - 10, 0) WHERE id = %s RETURNING debt",
+                (row['accepted_nurse_id'],)
+            )
+            nurse_row = cur.fetchone()
+            if nurse_row and nurse_row['debt'] < 50:
+                cur.execute(
+                    "UPDATE nurses SET status = 'approved' WHERE id = %s AND status = 'debt_blocked'",
+                    (row['accepted_nurse_id'],)
+                )
+
+        conn.commit()
+        return True, "تم إلغاء العملية النشطة بنجاح واسترداد عمولة الممرض إن وجدت."
+    except Exception as e:
+        conn.rollback()
+        return False, f"حدث خطأ أثناء إلغاء العملية: {e}"
+    finally:
+        cur.close()
+        conn.close()
+
+def delete_request(req_id):
+    """
+    حذف طلب/عملية نهائياً من قاعدة البيانات:
+    - إذا كانت العملية نشطة ومقبولة، يتم استرداد العمولة للممرض أولاً.
+    - حذف السجل نهائياً من جدول requests.
+    Returns: (bool, str) -> (success, message)
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT status, accepted_nurse_id FROM requests WHERE id = %s", (req_id,))
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            return False, "الطلب غير موجود أو تم حذفه مسبقاً."
+
+        # إذا كان الطلب نشطاً ومقبولاً من ممرض، نسترد عمولته قبل الحذف
+        if row['status'] == 'accepted' and row['accepted_nurse_id']:
+            cur.execute(
+                "UPDATE nurses SET debt = GREATEST(debt - 10, 0) WHERE id = %s RETURNING debt",
+                (row['accepted_nurse_id'],)
+            )
+            nurse_row = cur.fetchone()
+            if nurse_row and nurse_row['debt'] < 50:
+                cur.execute(
+                    "UPDATE nurses SET status = 'approved' WHERE id = %s AND status = 'debt_blocked'",
+                    (row['accepted_nurse_id'],)
+                )
+
+        cur.execute("DELETE FROM requests WHERE id = %s", (req_id,))
+        conn.commit()
+        return True, f"تم حذف الطلب #{req_id} نهائياً من السجل بنجاح."
+    except Exception as e:
+        conn.rollback()
+        return False, f"حدث خطأ أثناء حذف الطلب: {e}"
+    finally:
+        cur.close()
+        conn.close()
+
+def clear_requests_log(scope='finished_only'):
+    """
+    حذف مجموعة من السجلات من جدول requests:
+    scope:
+      - 'finished_only': حذف الطلبات المنتهية والملغاة فقط
+      - 'all': تفريغ كامل سجل الطلبات (مع استرداد عمولة أي مهام نشطة)
+    Returns: (bool, str, int) -> (success, message, deleted_count)
+    """
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        if scope == 'finished_only':
+            cur.execute(
+                """DELETE FROM requests 
+                   WHERE status IN ('completed', 'cancelled_by_patient', 'cancelled_by_nurse', 'cancelled_by_admin')"""
+            )
+            count = cur.rowcount
+            conn.commit()
+            return True, f"تم تنظيف السجل وحذف {count} طلب منتهي/ملغى بنجاح.", count
+        elif scope == 'all':
+            cur.execute(
+                """SELECT accepted_nurse_id FROM requests 
+                   WHERE status = 'accepted' AND accepted_nurse_id IS NOT NULL"""
+            )
+            active_nurses = cur.fetchall()
+            for row in active_nurses:
+                cur.execute(
+                    "UPDATE nurses SET debt = GREATEST(debt - 10, 0) WHERE id = %s RETURNING debt",
+                    (row['accepted_nurse_id'],)
+                )
+                nurse_row = cur.fetchone()
+                if nurse_row and nurse_row['debt'] < 50:
+                    cur.execute(
+                        "UPDATE nurses SET status = 'approved' WHERE id = %s AND status = 'debt_blocked'",
+                        (row['accepted_nurse_id'],)
+                    )
+
+            cur.execute("DELETE FROM requests")
+            count = cur.rowcount
+            conn.commit()
+            return True, f"تم مسح وتفريغ كامل سجل العمليات ({count} طلب) بنجاح.", count
+        else:
+            conn.rollback()
+            return False, "نوع التنظيف غير صالح.", 0
+    except Exception as e:
+        conn.rollback()
+        return False, f"حدث خطأ أثناء مسح السجل: {e}", 0
+    finally:
+        cur.close()
+        conn.close()
+
 # --- دوال الممرضين والعضوية ---
 def register_nurse(username, password, name, phone, gender, specialty, proof_info):
     """

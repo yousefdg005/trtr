@@ -241,6 +241,14 @@ else:
             _reset_patient_request()
             st.rerun()
 
+    # ── إذا أُلغيت الطلبية من الإدارة ──
+    elif status_data and status_data['status'] == 'cancelled_by_admin':
+        st.error("🛑 تم إلغاء هذا الطلب من قبل إدارة المنظومة.")
+        st.markdown("---")
+        if st.button("🔄 العودة لتقديم طلب جديد", type="primary", use_container_width=True):
+            _reset_patient_request()
+            st.rerun()
+
     # ── إذا أُلغيت الطلبية ──
     else:
         st.error("❌ تم إلغاء هذه الطلبية.")

@@ -566,3 +566,62 @@ def test_admin_delete_nurse_permanently(fresh_db, make_nurse, make_request, db, 
     success2, msg2 = database.delete_nurse(nurse_id)
     assert success2 is False
     assert "غير موجود" in msg2
+
+
+def test_admin_cancel_active_request_and_refund(fresh_db, make_nurse, make_request, db):
+    nurse = make_nurse(gender="أنثى")
+    req_id = make_request(gender="أنثى")
+    ok, _ = database.accept_request(req_id, nurse["id"])
+    assert ok
+    assert nurse_row(db, nurse["id"])["debt"] == 10
+    assert request_row(db, req_id)["status"] == "accepted"
+
+    # إلغاء العملية النشطة من قبل الإدارة
+    success, msg = database.cancel_request_by_admin(req_id)
+    assert success is True
+    assert "تم إلغاء" in msg
+
+    # التحقق من تحديث الحالة واسترداد عمولة الممرض
+    assert request_row(db, req_id)["status"] == "cancelled_by_admin"
+    assert nurse_row(db, nurse["id"])["debt"] == 0
+
+    # محاولة إلغاء عملية ملغاة بالفعل تفشل بأمان
+    success2, _ = database.cancel_request_by_admin(req_id)
+    assert success2 is False
+
+
+def test_admin_delete_request_and_clear_log(fresh_db, make_nurse, make_request, db):
+    nurse = make_nurse(gender="ذكر")
+    req1 = make_request(gender="ذكر")
+    req2 = make_request(gender="ذكر")
+    req3 = make_request(gender="ذكر")
+
+    # قبول الطلب 1
+    database.accept_request(req1, nurse["id"])
+    assert nurse_row(db, nurse["id"])["debt"] == 10
+
+    # إتمام الطلب 2
+    database.accept_request(req2, nurse["id"])
+    database.complete_request(req2, nurse["id"])
+
+    # 1. حذف الطلب النشط 1 نهائياً -> يجب استرداد عمولة الممرض ومسح الطلب
+    ok, msg = database.delete_request(req1)
+    assert ok is True
+    assert request_row(db, req1) is None
+    # كان لديه 20 دين (10 للطلب 1 و10 للطلب 2)، بعد حذف الطلب 1 يسترد 10 ويبقى 10
+    assert nurse_row(db, nurse["id"])["debt"] == 10
+
+    # 2. تنظيف السجل من المنتهي (finished_only)
+    # req2 مكتمل، req3 معلق -> req2 يُحذف وreq3 يبقى
+    ok_clean, msg_clean, cnt = database.clear_requests_log('finished_only')
+    assert ok_clean is True
+    assert cnt == 1
+    assert request_row(db, req2) is None
+    assert request_row(db, req3) is not None
+
+    # 3. تفريغ كامل السجل (all) -> req3 يُحذف وتصبح القائمة فارغة
+    ok_all, _, cnt_all = database.clear_requests_log('all')
+    assert ok_all is True
+    assert cnt_all == 1
+    assert db.fetchone("SELECT COUNT(*) AS c FROM requests")["c"] == 0
+

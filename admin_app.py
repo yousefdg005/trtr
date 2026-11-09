@@ -2,6 +2,79 @@ import streamlit as st
 import database
 import pandas as pd
 import os
+import io
+from datetime import datetime
+
+def _export_requests_excel(requests_list):
+    """تحويل سجل الطلبات إلى ملف Excel منسق"""
+    if not requests_list:
+        df = pd.DataFrame()
+    else:
+        status_map = {
+            'pending':              'معلق',
+            'accepted':             'جاري التنفيذ',
+            'completed':            'مكتمل بنجاح',
+            'cancelled_by_patient': 'ملغى من المريض',
+            'cancelled_by_nurse':   'ملغى من الممرض',
+            'cancelled_by_admin':   'ملغى من الإدارة',
+        }
+        rows = []
+        for r in requests_list:
+            created_str = str(r.get('created_at', ''))[:19]
+            rows.append({
+                'رقم الطلب': r.get('id'),
+                'تاريخ ووقت الطلب': created_str,
+                'نوع الخدمة': r.get('service_type'),
+                'اسم المريض': r.get('patient_name'),
+                'هاتف المريض': r.get('patient_phone'),
+                'جنس المريض': r.get('patient_gender'),
+                'العمر': r.get('patient_age'),
+                'العنوان بالتفصيل': r.get('location_text'),
+                'الحد الأدنى للسعر (د.ل)': r.get('min_price'),
+                'الحد الأقصى للسعر (د.ل)': r.get('max_price'),
+                'حالة الطلب': status_map.get(r.get('status'), r.get('status')),
+                'الممرض المستلم': r.get('accepted_by') or '—',
+                'وصف الحالة': r.get('service_desc') or '—',
+            })
+        df = pd.DataFrame(rows)
+
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='سجل طلبات التمريض')
+    return buf.getvalue()
+
+def _export_requests_csv(requests_list):
+    """تحويل سجل الطلبات إلى ملف CSV بترميز UTF-8 مع BOM لدعم اللغة العربية في إكسل"""
+    if not requests_list:
+        return b""
+    status_map = {
+        'pending':              'معلق',
+        'accepted':             'جاري التنفيذ',
+        'completed':            'مكتمل بنجاح',
+        'cancelled_by_patient': 'ملغى من المريض',
+        'cancelled_by_nurse':   'ملغى من الممرض',
+        'cancelled_by_admin':   'ملغى من الإدارة',
+    }
+    rows = []
+    for r in requests_list:
+        created_str = str(r.get('created_at', ''))[:19]
+        rows.append({
+            'رقم الطلب': r.get('id'),
+            'تاريخ ووقت الطلب': created_str,
+            'نوع الخدمة': r.get('service_type'),
+            'اسم المريض': r.get('patient_name'),
+            'هاتف المريض': r.get('patient_phone'),
+            'جنس المريض': r.get('patient_gender'),
+            'العمر': r.get('patient_age'),
+            'العنوان بالتفصيل': r.get('location_text'),
+            'الحد الأدنى للسعر (د.ل)': r.get('min_price'),
+            'الحد الأقصى للسعر (د.ل)': r.get('max_price'),
+            'حالة الطلب': status_map.get(r.get('status'), r.get('status')),
+            'الممرض المستلم': r.get('accepted_by') or '—',
+            'وصف الحالة': r.get('service_desc') or '—',
+        })
+    df = pd.DataFrame(rows)
+    return df.to_csv(index=False).encode('utf-8-sig')
 
 st.set_page_config(
     page_title="نظام رعايتي - لوحة الإدارة",
@@ -165,24 +238,155 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 # ── تبويب 1: العمليات ──
 with tab1:
-    st.subheader("📋 سجل طلبات التمريض")
+    st.subheader("📋 سجل طلبات وعمليات التمريض")
 
+    # 1. شريط الأدوات: سحب السجل كملف Excel أو CSV
+    if len(all_requests) > 0:
+        today_str = datetime.now().strftime("%Y%m%d_%H%M")
+        col_down1, col_down2, _spacer = st.columns([2, 1.5, 3])
+        with col_down1:
+            excel_bytes = _export_requests_excel(all_requests)
+            st.download_button(
+                label="📥 سحب السجل Excel (.xlsx)",
+                data=excel_bytes,
+                file_name=f"medlink_requests_{today_str}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                type="primary"
+            )
+        with col_down2:
+            csv_bytes = _export_requests_csv(all_requests)
+            st.download_button(
+                label="📄 سحب السجل CSV (UTF-8)",
+                data=csv_bytes,
+                file_name=f"medlink_requests_{today_str}.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+
+    st.markdown("---")
+
+    # 2. العمليات النشطة الجارية حالياً (مع إمكانية الإلغاء أو الحذف النهائي)
+    active_requests = [r for r in all_requests if r['status'] == 'accepted']
+    if len(active_requests) > 0:
+        st.markdown(f"#### 🚨 العمليات النشطة قيد التنفيذ الميداني ({len(active_requests)})")
+        st.caption("العمليات المقبولة حالياً من الممرضين وفي طريقهم للمرضى. يمكنك إلغاؤها أو حذفها نهائياً مع استرداد العمولة للممرض.")
+
+        for act in active_requests:
+            st.markdown(f"""
+            <div class="custom-card" style="border-right-color:#0284c7 !important; background:rgba(2,132,199,0.04);">
+              <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <div>
+                  <strong style="font-size:1.1rem;color:#0e7490;">🏥 {act['service_type']} (طلب #{act['id']})</strong>
+                  <span class="status-badge badge-green" style="margin-right:8px;">✅ جاري التنفيذ</span>
+                </div>
+                <div style="font-size:1rem;font-weight:800;color:#059669;">
+                  💰 الميزانية: {act['min_price']} – {act['max_price']} د.ل
+                </div>
+              </div>
+              <div style="margin-top:0.4rem;font-size:0.95rem;">
+                👤 <strong>المريض:</strong> {act['patient_name']} (📞 {act['patient_phone']}) &nbsp;|&nbsp;
+                👨‍⚕️ <strong>الممرض المستلم:</strong> {act['accepted_by'] or 'معتمد'}
+              </div>
+              <div style="font-size:0.95rem;">
+                📍 <strong>العنوان:</strong> {act['location_text']}
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                with st.popover(f"🛑 إلغاء العملية النشطة #{act['id']}", use_container_width=True):
+                    st.warning(f"هل أنت متأكد من إلغاء العملية النشطة للمريض **{act['patient_name']}** والممرض **{act['accepted_by']}**؟\n\nسيتم استرداد العمولة (10 د.ل) لحساب الممرض فوراً وإشعار المريض بالإلغاء.")
+                    if st.button("تأكيد إلغاء العملية", key=f"cancel_act_{act['id']}", type="primary", use_container_width=True):
+                        ok, msg = database.cancel_request_by_admin(act['id'])
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+            with col_c2:
+                with st.popover(f"🗑️ حذف العملية النشطة #{act['id']} نهائياً", use_container_width=True):
+                    st.error(f"⚠️ حذف العملية النشطة #{act['id']} نهائياً سيمسح السجل بالكامل من قاعدة البيانات فوراً مع استرداد عمولة الممرض.")
+                    if st.button("تأكيد الحذف النهائي", key=f"del_act_{act['id']}", type="primary", use_container_width=True):
+                        ok, msg = database.delete_request(act['id'])
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+            st.markdown("<div style='margin-bottom:0.75rem;'></div>", unsafe_allow_html=True)
+
+        st.markdown("---")
+
+    # 3. عرض جدول السجل بالكامل
+    st.markdown("#### 📊 جدول السجل الكامل للطلبات")
     if len(all_requests) == 0:
         st.info("لا توجد طلبات مسجلة حتى الآن في قاعدة البيانات.")
     else:
         df = pd.DataFrame(all_requests)
         df['الميزانية'] = df['min_price'].astype(str) + " – " + df['max_price'].astype(str) + " د.ل"
-        display_df = df[['id', 'service_type', 'patient_name', 'patient_gender',
+        display_df = df[['id', 'service_type', 'patient_name', 'patient_phone', 'patient_gender',
                           'location_text', 'الميزانية', 'status', 'accepted_by']].copy()
-        display_df.columns = ["#", "الخدمة", "المريض", "الجنس", "العنوان", "الميزانية", "الحالة", "الممرض"]
+        display_df.columns = ["#", "الخدمة", "المريض", "الهاتف", "الجنس", "العنوان", "الميزانية", "الحالة", "الممرض"]
         display_df['الحالة'] = display_df['الحالة'].replace({
             'pending':              '⏳ معلق',
             'accepted':             '✅ جاري التنفيذ',
             'completed':            '✨ مكتمل بنجاح',
             'cancelled_by_patient': '🔴 مُلغى من المريض',
             'cancelled_by_nurse':   '🟠 مُلغى من الممرض',
+            'cancelled_by_admin':   '🛑 مُلغى من الإدارة',
         })
         st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+        # 4. أدوات إدارة وحذف السجل
+        st.markdown("---")
+        with st.expander("🗑️ أدوات تنظيف وحذف سجل العمليات"):
+            st.markdown("##### 1. حذف طلب محدد برقم المعرف (#ID):")
+            col_id, col_btn_del = st.columns([3, 1])
+            with col_id:
+                req_ids = [r['id'] for r in all_requests]
+                selected_req_id = st.selectbox("اختر رقم الطلب المراد حذفه نهائياً", req_ids, key="sel_del_req_id")
+            with col_btn_del:
+                st.markdown("<div style='margin-top:1.8rem;'></div>", unsafe_allow_html=True)
+                with st.popover("🗑️ حذف هذا الطلب", use_container_width=True):
+                    st.warning(f"هل أنت متأكد من حذف الطلب رقم #{selected_req_id} نهائياً؟")
+                    if st.button("تأكيد حذف الطلب", key="confirm_del_single_req", type="primary", use_container_width=True):
+                        ok, msg = database.delete_request(selected_req_id)
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+            st.markdown("---")
+            col_clean1, col_clean2 = st.columns(2)
+            with col_clean1:
+                st.markdown("##### 2. تنظيف الطلبات المكتملة والملغاة فقط:")
+                st.caption("يحذف كافة الطلبات المنتهية ويُبقي الطلبات المعلقة والنشطة كما هي.")
+                with st.popover("🧹 تنظيف السجل من المنتهي", use_container_width=True):
+                    st.warning("سيتم مسح كافة الطلبات المكتملة والملغاة نهائياً. هل تود المتابعة؟")
+                    if st.button("تأكيد تنظيف المنتهي", key="clean_finished_log", type="primary", use_container_width=True):
+                        ok, msg, cnt = database.clear_requests_log('finished_only')
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
+
+            with col_clean2:
+                st.markdown("##### 3. تفريغ وحذف كامل سجل العمليات:")
+                st.caption("يحذف جميع الطلبات بلا استثناء من قاعدة البيانات مع استرداد عمولة أي مهام جارية.")
+                with st.popover("⚠️ تفريغ كامل السجل نهائياً", use_container_width=True):
+                    st.error("🚨 تحذير: هذا الإجراء سيفرغ جدول العمليات بالكامل ولا يمكن استرجاع السجل بعد الحذف!")
+                    if st.button("🔥 تأكيد تفريغ كامل السجل", key="clear_all_log", type="primary", use_container_width=True):
+                        ok, msg, cnt = database.clear_requests_log('all')
+                        if ok:
+                            st.success(msg)
+                            st.rerun()
+                        else:
+                            st.error(msg)
 
 # ── تبويب 2: طلبات الانضمام مع عرض صورة الوثيقة من مسار الملف (Task 2) ──
 with tab2:
