@@ -5,6 +5,8 @@ import os
 import io
 from datetime import datetime
 from reports import export_requests_excel, export_requests_csv
+import html
+import session_token
 
 _export_requests_excel = export_requests_excel
 _export_requests_csv = export_requests_csv
@@ -25,6 +27,9 @@ st.markdown("""
 .main .block-container { max-width: 1100px !important; }
 </style>
 """, unsafe_allow_html=True)
+
+# ── فشل-مغلق: لا عمل بدون مفتاح توقيع جلسات معرّف في الأسرار ──
+session_token.ensure_configured()
 
 # ══════════════════════════════════════════════
 # حماية ومصادقة لوحة الإدارة
@@ -74,8 +79,10 @@ if not st.session_state["admin_authenticated"]:
             login_btn = st.form_submit_button("🚀 تسجيل الدخول", type="primary", use_container_width=True)
 
             if login_btn:
-                ok_user = hmac.compare_digest(str(user_in), str(ADMIN_USERNAME))
-                ok_pass = hmac.compare_digest(str(pass_in), str(ADMIN_PASSWORD))
+                # compare_digest يرفع TypeError على النصوص غير ASCII (كلمة سر عربية)،
+                # لذلك نقارن البايتات بعد الترميز.
+                ok_user = hmac.compare_digest(str(user_in).encode("utf-8"), str(ADMIN_USERNAME).encode("utf-8"))
+                ok_pass = hmac.compare_digest(str(pass_in).encode("utf-8"), str(ADMIN_PASSWORD).encode("utf-8"))
                 if ok_user and ok_pass:
                     st.session_state["admin_authenticated"] = True
                     session_token.save_session("admin", "admin", session_token.ADMIN_TTL, bind=_ADMIN_BIND)
@@ -210,19 +217,19 @@ with tab1:
             <div class="custom-card" style="border-right-color:#0284c7 !important; background:rgba(2,132,199,0.04);">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div>
-                  <strong style="font-size:1.1rem;color:#0e7490;">🏥 {act['service_type']} (طلب #{act['id']})</strong>
+                  <strong style="font-size:1.1rem;color:#0e7490;">🏥 {html.escape(str(act['service_type']))} (طلب #{html.escape(str(act['id']))})</strong>
                   <span class="status-badge badge-green" style="margin-right:8px;">✅ جاري التنفيذ</span>
                 </div>
                 <div style="font-size:1rem;font-weight:800;color:#059669;">
-                  💰 الميزانية: {act['min_price']} – {act['max_price']} د.ل
+                  💰 الميزانية: {html.escape(str(act['min_price']))} – {html.escape(str(act['max_price']))} د.ل
                 </div>
               </div>
               <div style="margin-top:0.4rem;font-size:0.95rem;">
-                👤 <strong>المريض:</strong> {act['patient_name']} (📞 {act['patient_phone']}) &nbsp;|&nbsp;
-                👨‍⚕️ <strong>الممرض المستلم:</strong> {act['accepted_by'] or 'معتمد'}
+                👤 <strong>المريض:</strong> {html.escape(str(act['patient_name']))} (📞 {html.escape(str(act['patient_phone']))}) &nbsp;|&nbsp;
+                👨‍⚕️ <strong>الممرض المستلم:</strong> {html.escape(str(act['accepted_by'] or 'معتمد'))}
               </div>
               <div style="font-size:0.95rem;">
-                📍 <strong>العنوان:</strong> {act['location_text']}
+                📍 <strong>العنوان:</strong> {html.escape(str(act['location_text']))}
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -348,17 +355,17 @@ with tab2:
             <div class="custom-card">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div>
-                  <strong style="font-size:1.05rem;">👤 {n['name']}</strong>
-                  <span style="opacity:0.75;font-size:0.85rem;">(@{n['username']})</span>
+                  <strong style="font-size:1.05rem;">👤 {html.escape(str(n['name']))}</strong>
+                  <span style="opacity:0.75;font-size:0.85rem;">(@{html.escape(str(n['username']))})</span>
                   <span class="status-badge badge-orange" style="margin-right:8px;">⏳ قيد المراجعة</span>
                 </div>
                 <div>
-                  📞 {n['phone']} &nbsp;|&nbsp; 🏥 {n['specialty']} &nbsp;|&nbsp;
-                  {"👨" if n['gender'] == "ذكر" else "👩"} {n['gender']}
+                  📞 {html.escape(str(n['phone']))} &nbsp;|&nbsp; 🏥 {html.escape(str(n['specialty']))} &nbsp;|&nbsp;
+                  {"👨" if n['gender'] == "ذكر" else "👩"} {html.escape(str(n['gender']))}
                 </div>
               </div>
               <div style="margin-top:0.4rem;font-size:0.9rem;opacity:0.9;">
-                📝 <strong>معلومات المزاولة:</strong> {notes}
+                📝 <strong>معلومات المزاولة:</strong> {html.escape(str(notes))}
               </div>
             </div>
             """, unsafe_allow_html=True)
@@ -419,12 +426,12 @@ with tab3:
             <div class="custom-card">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div>
-                  <strong style="font-size:1.05rem;">{n['name']}</strong>
-                  <span style="opacity:0.75;font-size:0.85rem;">(@{n['username']})</span>
+                  <strong style="font-size:1.05rem;">{html.escape(str(n['name']))}</strong>
+                  <span style="opacity:0.75;font-size:0.85rem;">(@{html.escape(str(n['username']))})</span>
                   {badge_html}
                 </div>
                 <div>
-                  📞 {n['phone']} &nbsp;|&nbsp; الديون المستحقة: <strong>{n['debt']} د.ل</strong>
+                  📞 {html.escape(str(n['phone']))} &nbsp;|&nbsp; الديون المستحقة: <strong>{html.escape(str(n['debt']))} د.ل</strong>
                 </div>
               </div>
             </div>
@@ -472,15 +479,15 @@ with tab4:
             <div class="custom-card" style="border-right-color:#f59e0b !important;">
               <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                 <div>
-                  💳 <strong>الممرض:</strong> {p['nurse_name']}
-                  <span style="opacity:0.8;font-size:0.85rem;">(📞 {p['phone']})</span>
+                  💳 <strong>الممرض:</strong> {html.escape(str(p['nurse_name']))}
+                  <span style="opacity:0.8;font-size:0.85rem;">(📞 {html.escape(str(p['phone']))})</span>
                 </div>
                 <div>
-                  القيمة: <strong style="font-size:1.1rem;color:#10b981;">{p['amount']} د.ل</strong>
+                  القيمة: <strong style="font-size:1.1rem;color:#10b981;">{html.escape(str(p['amount']))} د.ل</strong>
                 </div>
               </div>
               <div style="margin-top:0.4rem;font-size:1rem;font-weight:700;letter-spacing:1px;">
-                🔢 رقم الكرت: {p['card_number']}
+                🔢 رقم الكرت: {html.escape(str(p['card_number']))}
               </div>
             </div>
             """, unsafe_allow_html=True)

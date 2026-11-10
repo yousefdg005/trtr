@@ -5,6 +5,7 @@ from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
 import os
 import uuid
+import html
 import database
 import session_token
 
@@ -17,6 +18,9 @@ st.set_page_config(
 
 with open('style.css') as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+# ── فشل-مغلق: لا عمل بدون مفتاح توقيع جلسات معرّف في الأسرار ──
+session_token.ensure_configured()
 
 # ── التحقق من المنظومة ──
 if not database.get_system_status():
@@ -196,8 +200,8 @@ else:
     with col_title:
         st.markdown(f"""
         <div class="app-header-banner" style="margin-bottom:0.8rem;">
-          <div class="banner-title">👨‍⚕️ مرحباً، {nurse['name']}</div>
-          <div class="banner-subtitle">التخصص: {nurse['specialty']} &nbsp;|&nbsp; الجنس: {nurse['gender']}</div>
+          <div class="banner-title">👨‍⚕️ مرحباً، {html.escape(str(nurse['name']))}</div>
+          <div class="banner-subtitle">التخصص: {html.escape(str(nurse['specialty']))} &nbsp;|&nbsp; الجنس: {html.escape(str(nurse['gender']))}</div>
         </div>
         """, unsafe_allow_html=True)
     with col_logout:
@@ -231,16 +235,16 @@ else:
         st.markdown(f"""
         <div class="custom-card">
           <div style="font-size:1.1rem;font-weight:800;color:#0e7490;margin-bottom:0.5rem;">
-            🏥 الخدمة المطلوبة: {active_request['service_type']}
+            🏥 الخدمة المطلوبة: {html.escape(str(active_request['service_type']))}
           </div>
           <div style="font-size:1rem;margin-bottom:0.3rem;">
-            👤 <strong>اسم المريض:</strong> {active_request['patient_name']}
+            👤 <strong>اسم المريض:</strong> {html.escape(str(active_request['patient_name']))}
           </div>
           <div style="font-size:1.15rem;font-weight:800;color:#059669;margin-bottom:0.3rem;">
-            📞 <strong>هاتف المريض:</strong> {active_request['patient_phone']}
+            📞 <strong>هاتف المريض:</strong> {html.escape(str(active_request['patient_phone']))}
           </div>
           <div style="font-size:0.95rem;">
-            📍 <strong>العنوان التفصيلي:</strong> {active_request['location_text']}
+            📍 <strong>العنوان التفصيلي:</strong> {html.escape(str(active_request['location_text']))}
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -360,18 +364,18 @@ else:
                         <div class="custom-card">
                           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
                             <div>
-                              <strong style="font-size:1.1rem;color:#0e7490;">🏥 {req['service_type']}</strong>
+                              <strong style="font-size:1.1rem;color:#0e7490;">🏥 {html.escape(str(req['service_type']))}</strong>
                               <span style="opacity:0.8;font-size:0.85rem;margin-right:8px;">(يبعد: {req['distance_km']:.1f} كم 📍)</span>
                             </div>
                             <div style="font-size:1rem;font-weight:800;color:#059669;">
-                              💰 الميزانية: {req['min_price']} – {req['max_price']} د.ل
+                              💰 الميزانية: {html.escape(str(req['min_price']))} – {html.escape(str(req['max_price']))} د.ل
                             </div>
                           </div>
                           <div style="margin-top:0.4rem;font-size:0.95rem;">
-                            👤 <strong>المريض:</strong> {req['patient_name']} (العمر: {req['patient_age']})
+                            👤 <strong>المريض:</strong> {html.escape(str(req['patient_name']))} (العمر: {html.escape(str(req['patient_age']))})
                           </div>
                           <div style="font-size:0.95rem;">
-                            📍 <strong>العنوان:</strong> {req['location_text']}
+                            📍 <strong>العنوان:</strong> {html.escape(str(req['location_text']))}
                           </div>
                         </div>
                         """, unsafe_allow_html=True)
