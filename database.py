@@ -1,12 +1,66 @@
 import re
+import os
+import logging
 
 import streamlit as st
 import psycopg2
+from psycopg2 import pool as pg_pool
 from psycopg2.extras import RealDictCursor
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# --- ثوابت العمل (كانت أرقاماً مكرّرة في خمس دوال) ---
+COMMISSION_LYD = 10          # عمولة النظام على كل مهمة مقبولة
+DEBT_LIMIT_LYD = 50          # حد الديون الذي يوقف الحساب
+MAX_PAYMENT_AMOUNT = 50      # أعلى فئة كرت مدار
+
+logger = logging.getLogger(__name__)
+
+# مجلد رفع وثائق المزاولة — أي حذف ملف يجب أن يبقى داخله
+UPLOAD_DIR = os.path.join("uploads", "licenses")
+
+
+def _is_inside_upload_dir(path):
+    """يتحقق أن المسار يقع فعلياً داخل مجلد الرفع المخصص.
+
+    المسار يأتي من قاعدة البيانات، فلا نثق به: نمنع الخروج عبر .. أو
+    المسارات المطلقة التي تشير إلى مكان آخر (حذف ملفات عشوائية).
+    """
+    try:
+        base = os.path.realpath(UPLOAD_DIR)
+        target = os.path.realpath(path)
+        return os.path.commonpath([base, target]) == base
+    except (ValueError, OSError):
+        return False
+
+# --- تجميع الاتصالات: كل استدعاء كان يفتح TCP+TLS جديداً إلى Neon ---
+_POOL = None
+
+
+def _get_pool():
+    """يُنشئ مجمّع اتصالات واحداً ويعيد استخدامه بين الاستدعاءات."""
+    global _POOL
+    if _POOL is None:
+        _POOL = pg_pool.SimpleConnectionPool(
+            1, 10,
+            st.secrets["database"]["url"],
+            cursor_factory=RealDictCursor,
+        )
+    return _POOL
+
+
 def get_connection():
-    return psycopg2.connect(st.secrets["database"]["url"], cursor_factory=RealDictCursor)
+    return _get_pool().getconn()
+
+
+def _release(conn):
+    """يعيد الاتصال إلى المجمّع بدل إغلاقه (إغلاقه يهدم الفائدة من التجميع)."""
+    try:
+        _get_pool().putconn(conn)
+    except Exception:
+        try:
+            _release(conn)
+        except Exception:
+            pass
 
 # --- التحقق من صحة المدخلات ---
 LIBYAN_MOBILE_RE = re.compile(r"^09\d{8}$")
@@ -51,7 +105,7 @@ def create_request(service, name, phone, gender, age, desc, loc_text, lat, lng, 
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def get_nearby_pending_requests(nurse_gender, nurse_lat, nurse_lng, max_radius_km=10):
     conn = get_connection()
@@ -63,10 +117,12 @@ def get_nearby_pending_requests(nurse_gender, nurse_lat, nurse_lng, max_radius_k
             SELECT id, service_type, patient_name, patient_gender, patient_age,
                    service_desc, location_text, location_lat, location_lng,
                    min_price, max_price, status, accepted_nurse_id, created_at,
-                   (ST_DistanceSphere(ST_MakePoint(location_lng, location_lat), ST_MakePoint(%s, %s)) / 1000.0) as distance_km
+                   (ST_Distance(ST_SetSRID(ST_MakePoint(location_lng, location_lat), 4326)::geography,
+                                ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) / 1000.0) as distance_km
             FROM requests
             WHERE status = 'pending' AND patient_gender = %s
-            AND (ST_DistanceSphere(ST_MakePoint(location_lng, location_lat), ST_MakePoint(%s, %s)) / 1000.0) <= %s
+            AND (ST_Distance(ST_SetSRID(ST_MakePoint(location_lng, location_lat), 4326)::geography,
+                             ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) / 1000.0) <= %s
             ORDER BY distance_km ASC
         """
         cur.execute(query, (nurse_lng, nurse_lat, nurse_gender, nurse_lng, nurse_lat, max_radius_km))
@@ -77,7 +133,7 @@ def get_nearby_pending_requests(nurse_gender, nurse_lat, nurse_lng, max_radius_k
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def get_all_requests():
     conn = get_connection()
@@ -98,7 +154,7 @@ def get_all_requests():
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def accept_request(req_id, nurse_id):
     """
@@ -154,7 +210,7 @@ def accept_request(req_id, nurse_id):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def complete_request(req_id, nurse_id):
     """
@@ -180,7 +236,7 @@ def complete_request(req_id, nurse_id):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def get_request_status(req_id):
     conn = get_connection()
@@ -199,7 +255,7 @@ def get_request_status(req_id):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 # --- دوال الإلغاء واسترداد العمولة ---
 def cancel_request_by_patient(req_id):
@@ -240,7 +296,7 @@ def cancel_request_by_patient(req_id):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def get_accepted_request_for_nurse(nurse_id):
     conn = get_connection()
@@ -257,7 +313,7 @@ def get_accepted_request_for_nurse(nurse_id):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def cancel_request_by_nurse(req_id, nurse_id):
     """
@@ -294,7 +350,7 @@ def cancel_request_by_nurse(req_id, nurse_id):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def cancel_request_by_admin(req_id):
     """
@@ -333,12 +389,13 @@ def cancel_request_by_admin(req_id):
 
         conn.commit()
         return True, "تم إلغاء العملية النشطة بنجاح واسترداد عمولة الممرض إن وجدت."
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        return False, f"حدث خطأ أثناء إلغاء العملية: {e}"
+        logger.exception("cancel_request_by_admin failed for req_id=%r", req_id)
+        return False, "حدث خطأ أثناء إلغاء العملية. يرجى المحاولة لاحقاً."
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def delete_request(req_id):
     """
@@ -372,12 +429,13 @@ def delete_request(req_id):
         cur.execute("DELETE FROM requests WHERE id = %s", (req_id,))
         conn.commit()
         return True, f"تم حذف الطلب #{req_id} نهائياً من السجل بنجاح."
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        return False, f"حدث خطأ أثناء حذف الطلب: {e}"
+        logger.exception("delete_request failed for req_id=%r", req_id)
+        return False, "حدث خطأ أثناء حذف الطلب. يرجى المحاولة لاحقاً."
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def clear_requests_log(scope='finished_only'):
     """
@@ -423,12 +481,13 @@ def clear_requests_log(scope='finished_only'):
         else:
             conn.rollback()
             return False, "نوع التنظيف غير صالح.", 0
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        return False, f"حدث خطأ أثناء مسح السجل: {e}", 0
+        logger.exception("clear_requests_log failed for scope=%r", scope)
+        return False, "حدث خطأ أثناء مسح السجل. يرجى المحاولة لاحقاً.", 0
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 # --- دوال الممرضين والعضوية ---
 def register_nurse(username, password, name, phone, gender, specialty, proof_info):
@@ -454,12 +513,14 @@ def register_nurse(username, password, name, phone, gender, specialty, proof_inf
     except psycopg2.errors.UniqueViolation:
         conn.rollback()
         return False, "اسم المستخدم هذا موجود مسبقاً، اختر اسماً آخر."
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        return False, str(e)
+        # لا نُظهر نص خطأ psycopg2 الخام للواجهة (يكشف أسماء الجداول والأعمدة)
+        logger.exception("register_nurse failed for username=%r", username)
+        return False, "تعذر إكمال التسجيل حالياً. يرجى المحاولة لاحقاً أو التواصل مع الإدارة."
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def login_nurse(username, password):
     """
@@ -478,7 +539,7 @@ def login_nurse(username, password):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def get_nurse_by_id(nurse_id):
     """
@@ -495,7 +556,7 @@ def get_nurse_by_id(nurse_id):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def get_pending_nurses():
     conn = get_connection()
@@ -509,7 +570,7 @@ def get_pending_nurses():
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def update_nurse_status(nurse_id, status):
     conn = get_connection()
@@ -522,7 +583,7 @@ def update_nurse_status(nurse_id, status):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def get_all_nurses():
     conn = get_connection()
@@ -536,7 +597,7 @@ def get_all_nurses():
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def delete_nurse(nurse_id):
     """
@@ -581,23 +642,26 @@ def delete_nurse(nurse_id):
         conn.commit()
 
         # 5. تنظيف ملف وثيقة المزاولة من القرص إن وُجد
+        #    المسار مقروء من قاعدة البيانات، لذا نتحقق أنه داخل مجلد الرفع
+        #    المخصص قبل الحذف — لا نحذف أي مسار يخرج عنه.
         proof = nurse.get('proof_info') or ""
         if proof.startswith("FILE_PATH:"):
             parts = proof.replace("FILE_PATH:", "").split("###", 1)
             file_path = parts[0]
-            if file_path and os.path.exists(file_path):
+            if file_path and _is_inside_upload_dir(file_path) and os.path.exists(file_path):
                 try:
                     os.remove(file_path)
                 except OSError:
-                    pass
+                    logger.warning("could not remove license file %r", file_path)
 
         return True, f"تم حذف حساب الممرض ({nurse['name']}) وكافة سجلاته نهائياً بنجاح."
-    except Exception as e:
+    except Exception:
         conn.rollback()
-        return False, f"حدث خطأ أثناء حذف الحساب: {e}"
+        logger.exception("delete_nurse failed for nurse_id=%r", nurse_id)
+        return False, "حدث خطأ أثناء حذف الحساب. يرجى المحاولة لاحقاً."
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 # --- دوال النظام والمدفوعات ---
 def get_system_status():
@@ -612,7 +676,7 @@ def get_system_status():
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def set_system_status(is_active):
     """
@@ -634,7 +698,7 @@ def set_system_status(is_active):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def submit_payment(nurse_id, card_number, amount):
     """
@@ -651,7 +715,7 @@ def submit_payment(nurse_id, card_number, amount):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def get_pending_payments():
     """
@@ -673,7 +737,7 @@ def get_pending_payments():
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)
 
 def review_payment(payment_id, nurse_id, amount, action):
     """
@@ -709,4 +773,4 @@ def review_payment(payment_id, nurse_id, amount, action):
         raise
     finally:
         cur.close()
-        conn.close()
+        _release(conn)

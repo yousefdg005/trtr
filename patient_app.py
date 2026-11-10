@@ -3,6 +3,7 @@ import folium
 from folium import plugins
 from streamlit_folium import st_folium
 from streamlit_autorefresh import st_autorefresh
+import html
 import database
 import session_token
 
@@ -15,6 +16,9 @@ st.set_page_config(
 
 with open('style.css') as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+
+# ── فشل-مغلق: لا عمل بدون مفتاح توقيع جلسات معرّف في الأسرار ──
+session_token.ensure_configured()
 
 # ── التحقق من أن المنظومة تعمل ──
 if not database.get_system_status():
@@ -189,7 +193,7 @@ else:
         <div class="custom-card">
           <div style="font-size:0.9rem;opacity:0.8;margin-bottom:4px;">رقم هاتف الممرض المباشر للتواصل:</div>
           <div style="font-size:1.6rem;font-weight:900;color:#059669;letter-spacing:1px;">
-            📞 {status_data['nurse_phone']}
+            📞 {html.escape(str(status_data['nurse_phone']))}
           </div>
         </div>
         """, unsafe_allow_html=True)

@@ -9,10 +9,13 @@ WebSocket واحد. عند إعادة تحميل الصفحة (F5) يُفتح ا
 الرابط يبقى كما هو عند إعادة التحميل، فنقرأ الرمز ونتحقق من توقيعه وصلاحيته
 ثم نستعيد الجلسة. لا يمكن تزوير الرمز أو تعديله بدون المفتاح السري.
 
-المفتاح السري: يُفضَّل تعريفه في الأسرار:
+المفتاح السري: **إلزامي** ويجب تعريفه في الأسرار:
     [auth]
     secret_key = "قيمة_عشوائية_طويلة"
-وإن لم يوجد يُشتق من رابط قاعدة البيانات (وهو سرّي أصلاً).
+لا يوجد أي مفتاح احتياطي ولا اشتقاق من رابط قاعدة البيانات: أي بديل
+قابل للاستنتاج من المستودع أو من سرّ آخر يعني أن أي شخص يملكه يستطيع
+تزوير رمز جلسة لأي دور. عند غياب المفتاح يتوقف التطبيق برسالة إعداد
+(fail-closed) بدل أن يعمل بمفتاح ضعيف بصمت.
 """
 import base64
 import hashlib
@@ -37,17 +40,29 @@ def _b64d(text: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
 
 
+class MissingSecretKey(RuntimeError):
+    """يُرفع عند غياب [auth] secret_key في الأسرار — فشل-مغلق، لا مفتاح بديل."""
+
+
 def _secret() -> bytes:
+    """مفتاح التوقيع. إلزامي من الأسرار، بلا أي احتياطي.
+
+    أي قيمة احتياطية (ثابتة في الكود أو مشتقة من رابط قاعدة البيانات) تجعل
+    تزوير رموز الجلسات ممكناً لمن يقرأ المستودع أو يملك السرّ الآخر، لذلك
+    نرفض العمل بدونه بدل أن نضعف التوقيع بصمت.
+    """
     key = None
     try:
         key = st.secrets["auth"]["secret_key"]
     except Exception:
         key = None
-    if not key:
-        try:
-            key = "medlink-session-v1::" + str(st.secrets["database"]["url"])
-        except Exception:
-            key = "medlink-session-v1-fallback-default-key-dev"
+    if not key or not str(key).strip():
+        raise MissingSecretKey(
+            "المفتاح السري للجلسات غير معرّف. أضف في Secrets:\n"
+            "[auth]\n"
+            'secret_key = "قيمة عشوائية طويلة"\n'
+            "أنشئها بأمر مثل: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
     return hashlib.sha256(str(key).encode()).digest()
 
 
@@ -92,3 +107,15 @@ def load_session(role: str, bind: str = ""):
 def clear_session() -> None:
     if PARAM in st.query_params:
         del st.query_params[PARAM]
+
+
+def ensure_configured() -> None:
+    """يُستدعى عند بدء كل تطبيق: يتحقق من وجود المفتاح السري.
+
+    عند غيابه يعرض تعليمات الإعداد ويتوقف — فشل-مغلق بدل العمل بمفتاح ضعيف.
+    """
+    try:
+        _secret()
+    except MissingSecretKey as exc:
+        st.error(f"🚨 {exc}")
+        st.stop()

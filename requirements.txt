@@ -1,8 +1,10 @@
-streamlit
-psycopg2-binary
-pandas
-folium
-streamlit-folium
-streamlit-autorefresh
-werkzeug
-openpyxl
+# إصدارات مثبّتة: بناء قابل للتكرار، ولا يكسر تحديث تلقائي التطبيق بلا إنذار.
+# لتحديث أي حزمة: عدّل الرقم هنا صراحةً واختبر قبل النشر.
+streamlit==1.40.2
+psycopg2-binary==2.9.10
+pandas==2.2.3
+folium==0.18.0
+streamlit-folium==0.23.1
+streamlit-autorefresh==1.0.1
+werkzeug==3.1.3
+openpyxl==3.1.5
